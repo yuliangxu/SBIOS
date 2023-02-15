@@ -11,5 +11,6 @@ Description: More details about what the package does. See
 License: GPL (>= 2)
 Encoding: UTF-8
 RoxygenNote: 7.1.2
-Imports: Rcpp (>= 1.0.10)
-LinkingTo: Rcpp, RcppArmadillo
+Imports: Rcpp (>= 1.0.10), bigmemory, bigstatsr, MASS, BayesGPfit
+Suggests: Matrix, RSpectra, mvtnorm, profmem, ggplot2, viridis
+LinkingTo: Rcpp, RcppArmadillo, BH, RcppProgress, bigmemory 
