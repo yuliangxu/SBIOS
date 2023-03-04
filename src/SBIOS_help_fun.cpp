@@ -1,8 +1,16 @@
 // Using the new derivations
 #include <RcppArmadillo.h>
 #include "SBIOS_help_fun.h"
+#include <bigmemory/BigMatrix.h>
 // [[Rcpp::depends(RcppArmadillo)]]
 using namespace Rcpp;
+
+// [[Rcpp::export]]
+arma::mat big_address2mat(SEXP bigmat_address) {
+  
+  XPtr<BigMatrix> bigmat_pointer(bigmat_address);
+  return arma::Mat<double>((double *)bigmat_pointer->matrix(), bigmat_pointer->nrow(), bigmat_pointer->ncol(), false);
+}
 
 // [[Rcpp::export]]
 void set_seed(double seed) {
@@ -76,3 +84,34 @@ void update_XY_eta_term(arma::colvec& XY_eta_term, arma::mat& XqYstar_theta_eta_
   }
   XqYstar_theta_eta_term = XqYstar_term_allsample - XqYstar_theta_eta_term;
 }
+
+void update_XY_eta_term_memsave(arma::colvec& XY_eta_term, arma::mat& XqYstar_theta_eta_term,
+                        const arma::colvec& XY_term_allsample, const arma::mat& XqYstar_term_allsample,
+                        const Rcpp::List& theta_eta_path, Rcpp::List& Phi_Q,Rcpp::List& region_idx, Rcpp::List& L_idx,
+                        Rcpp::List& batch_idx, Rcpp::List& X_list){
+  int total_batch = batch_idx.size();
+  XY_eta_term = XY_term_allsample;
+  int L = XqYstar_term_allsample.n_rows;
+  int q = XqYstar_term_allsample.n_cols;
+  XqYstar_theta_eta_term = arma::zeros(L,q);
+  int p = XY_term_allsample.n_elem;
+  for(int b = 0; b<total_batch; b++){
+    arma::uvec batch_range = batch_idx[b];
+    SEXP theta_eta_b_address =  theta_eta_path[b];
+    XPtr<BigMatrix> theta_eta_b_pointer(theta_eta_b_address);
+    const arma::mat theta_eta_b = arma::Mat<double>((double *)theta_eta_b_pointer->matrix(), theta_eta_b_pointer->nrow(), theta_eta_b_pointer->ncol(), false);
+    arma::mat X_batch = X_list[b];
+    int q = X_batch.n_rows-1;
+    arma::rowvec X_b = X_batch.row(0);
+    arma::mat X_q = X_batch.rows(1,q); //q by n_batch
+    XqYstar_theta_eta_term += theta_eta_b * X_q.t();
+    
+    // theta_eta_b.each_row() %= X_b;
+    // arma::colvec theta_eta_X_sum = sum(theta_eta_b,1);
+    arma::colvec theta_eta_X_sum = theta_eta_b * X_b.t();
+    arma::colvec eta_X_sum = Low_to_high_vec(theta_eta_X_sum, p,Phi_Q, region_idx, L_idx);
+    XY_eta_term += -eta_X_sum;
+  }
+  XqYstar_theta_eta_term = XqYstar_term_allsample - XqYstar_theta_eta_term;
+}
+

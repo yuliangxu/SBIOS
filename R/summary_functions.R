@@ -155,3 +155,54 @@ get_imp_MSE = function(sgld3,mask_list_all,data_list,plot_b1=T){
 get_mse=function(x,y){
   return(mean((x-y)^2))
 }
+
+plot_ROC = function(ip_list, beta, len=20){
+  thresh_grid = seq(0,1,length.out = len)
+  FPR_all = NULL; TPR_all = NULL
+  
+  for(i in 1:length(ip_list)){
+    ip = ip_list[[i]]
+    TPR = rep(NA,len)
+    FPR = rep(NA,len)
+    
+    if(names(ip_list)[i] == "MUA"){
+      p_adj = p.adjust(ip,"BH")
+      p_adj_thresh = quantile(p_adj,probs = thresh_grid)
+      
+      for(l in 1:len){
+        res = as.matrix(table(p_adj <= p_adj_thresh[l], beta!=0))
+        TPR[l] = res["TRUE","TRUE"]/sum(res[,"TRUE"]) # TP/P
+        FPR[l] = res["TRUE","FALSE"]/sum(res[,"TRUE"]) # FP/P
+      }
+      TPR = c(TPR,1)
+      FPR = c(FPR,1)
+    }else{
+      # ip_thresh_grid = quantile(ip,probs = thresh_grid)
+      ip_thresh_grid = thresh_grid
+      for(l in 1:len){
+        thresh = ip_thresh_grid[l]
+        res = as.matrix(table(ip>=thresh, beta!=0))
+        if(! "TRUE" %in% rownames(res)){
+          res = as.matrix(rbind(res,c(0,0)))
+          rownames(res) = c("FALSE","TRUE")
+        }
+        TPR[l] = res["TRUE","TRUE"]/sum(res[,"TRUE"]) # TP/P
+        FPR[l] = res["TRUE","FALSE"]/sum(res[,"TRUE"]) # FP/P
+        
+      }
+      TPR = c(1,TPR)
+      FPR = c(1,FPR)
+    }
+    
+    TPR_all = cbind(TPR_all, TPR)
+    FPR_all = cbind(FPR_all, FPR)
+    
+  }
+  
+  return(list(FPR = FPR_all,TPR= TPR_all))
+  
+}
+
+
+
+

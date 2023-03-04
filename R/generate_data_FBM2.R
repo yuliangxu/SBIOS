@@ -6,7 +6,24 @@ library(bigstatsr)
 library(mvtnorm)
 library(RSpectra)
 # ====Parameter Setup====
-
+get_mem = function(p_mem,sum_method = "tseries", bool_plot=F,main="mem"){
+  # when using Rprof with summaryRprof(filename = "Rprof.out",memory = "both")
+  if(sum_method == "both"){
+    return(list(total_mem = sum(p_mem$by.self$mem.total), 
+                max_mem = max(p_mem$by.self$mem.total)) )
+  }
+  if(sum_method == "tseries"){
+    all_mem = apply(p_mem[,1:3],1,sum)*1e-6
+    if(bool_plot){
+      rname = as.numeric(rownames(p_mem))
+      plot(rname, all_mem,main = main)
+    }
+    return( as.data.frame( cbind(total_mem = sum(all_mem), 
+                max_mem = max(all_mem)) ) )
+  }
+  
+  
+}
 
 get_imp_list_RDA = function(imp_list, region_idx){
   total_batch = length(imp_list)
@@ -223,7 +240,7 @@ generate_basis_sq_FBM = function(grids,a=0.01,b=10,poly_degree=10){
 }
 
 generate_block_sq_basis = function(grids, region_idx_list,a = 0.01, b=10, poly_degree=20,
-                             show_progress=FALSE){
+                                   show_progress=FALSE){
   num_block = length(region_idx_list)
   Phi_D = vector("list",num_block)
   Phi_Q = vector("list",num_block)
@@ -282,9 +299,9 @@ generate_data_FBM = function(n,true_beta,basis,sigma_alpha=1e-3){
   
   data_FBM$logLL = (-0.5/data_FBM$sigma_Y^2)*
     norm(data_FBM$Y- as.matrix(data_FBM$beta*data_FBM$delta) %*% t(as.matrix(data_FBM$X)) -
-         data_FBM$eta ,"f")^2 +
+           data_FBM$eta ,"f")^2 +
     (-n*L)/2*log(2*pi*data_FBM$sigma_Y^2)
-    
+  
   data_FBM$snratio$beta = rep(NA, L)
   beta_term = temp_FBM%*%t(as.matrix(data_FBM$X))
   res_term = data_FBM$eps_star
@@ -338,16 +355,16 @@ generate_large_block_data_FBM = function(n,beta_true, basis, region_idx,
   data_params = list(beta = beta_transformed,delta=delta,
                      snratio =snratio ,
                      # Y=Y,Y_star=Y_star,X=X,
-                  # eta=eta,
-                  theta_eta = theta_eta, 
-                  logLL = logLL,
-                  sigma_Y = sigma_Y, sigma_beta = sigma_beta, sigma_eta = sigma_eta)
+                     # eta=eta,
+                     theta_eta = theta_eta, 
+                     logLL = logLL,
+                     sigma_Y = sigma_Y, sigma_beta = sigma_beta, sigma_eta = sigma_eta)
   saveRDS(data_params,file.path(outpath,paste("data_batch_n",n,"_p",p,"_L",L,"params.rds",sep="")))
   return(data_params)
 }
 
 generate_large_block_multiGP_data_FBM = function(n,beta_true, gamma_true, basis,
-                                                 region_idx, outpath,
+                                                 region_idx, outpath,sim_name=NULL,
                                                  sigma_Y = 1,
                                                  sigma_eta = 0.1,
                                                  X_scale = 1,
@@ -390,19 +407,20 @@ generate_large_block_multiGP_data_FBM = function(n,beta_true, gamma_true, basis,
   for(b in 2:(n_batch+1)){
     b_idx = b_all[b-1]:(b_all[b]-1)
     data_b = list(Y=Y[,b_idx],X=X[,b_idx])
-    saveRDS(data_b,file.path(outpath,paste("data_multiGP_batch_n",n,"_p",p,"_L",L,"_b",b-1,".rds",sep="")))
+    saveRDS(data_b,file.path(outpath,paste(sim_name,"data_multiGP_batch_n",n,"_p",p,"_L",L,"_b",b-1,".rds",sep="")))
   }
   
   snratio = apply(as.matrix(beta_transformed*delta)%*%X[1,],1,var)/apply(Y,1,var)
   
-  data_params = list(beta = beta_transformed,delta=delta,
+  data_params = list(beta = beta_transformed,
+                     delta=delta,
                      gamma = gamma_true,
                      snratio =snratio ,
                      theta_eta = theta_eta, 
                      # eta = eta,
                      logLL = logLL,
                      sigma_Y = sigma_Y, sigma_beta = sigma_beta, sigma_eta = sigma_eta)
-  saveRDS(data_params,file.path(outpath,paste("data_multiGP_batch_n",n,"_p",p,"_L",L,"params.rds",sep="")))
+  saveRDS(data_params,file.path(outpath,paste(sim_name,"data_multiGP_batch_n",n,"_p",p,"_L",L,"params.rds",sep="")))
   return(data_params)
 }
 
@@ -437,14 +455,14 @@ read_data_list_to_FBM_impute = function(data_path_list,mask_list_fbm,basis){
     Y_b = data_b$Y * mask_b
     Y_star[[b]] = as.big.matrix(High_to_low(Y_b,basis))@address
     Y[[b]] = as.big.matrix(Y_b)@address
-    Y_fbm[[b]] = as_FBM(Y_b)
+    # Y_fbm[[b]] = as_FBM(Y_b)
     X[[b]] = data_b$X
   }
   return(list(Y_list = Y, X_list = X,
               Y_star_list = Y_star
               # Y_fbm_list = Y_fbm,
               # Y_true_fbm = Y_true_fbm
-              ))
+  ))
 }
 
 read_data_list_to_gs = function(data_path_list,mask_list_fbm){
@@ -499,7 +517,7 @@ Low_to_high = function(X_star,basis,display = 0){
   for(r in 1:n_region){
     if(display){
       
-    print(paste("region = ",r))
+      print(paste("region = ",r))
     }
     Q = as_FBM(basis$Phi_Q[[r]])
     L_end = L_start + dim(Q)[2] - 1
