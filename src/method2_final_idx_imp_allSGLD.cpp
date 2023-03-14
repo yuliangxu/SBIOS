@@ -196,25 +196,28 @@ void update_Y_mat(arma::mat& Y_mat, arma::vec& Y_imp,
 // Y_star: computed from the zero-imputed Y
 // allSGLD version: adjust stepsize, use sgld to update all parameters
 
+
+
+
 // [[Rcpp::export]]
 List method2_SGLD_multiGP_impute_idx_fixeta(Rcpp::List& data_list, Rcpp::List& basis,  
-                                            Rcpp::List& dimensions, Rcpp::List& imp_idx_list,
-                                            arma::uvec total_imp, 
-                                            Rcpp::List& init_params, Rcpp::List& region_idx, Rcpp::List& L_idx,
-                                            Rcpp::List& batch_idx, 
-                                            double lambda, double prior_p,
-                                            int n_mcmc, int start_saving_imp,
-                                            int start_delta, int subsample_size, double step,
-                                            int begin_eta = 0,
-                                            int seed = 2022,
-                                            int thinning = 1, int burnin = 0,
-                                            double a=1, double b=1,int interval_eta = 10, 
-                                            bool all_sgld = false,
-                                            double a_step = 0.001,
-                                            double b_step = 10,
-                                            double gamma_step = -0.55,
-                                            bool testing = true, bool display_progress = true,
-                                            bool update_individual_effect = false){
+                                                Rcpp::List& dimensions, Rcpp::List& imp_idx_list,
+                                                arma::uvec total_imp, 
+                                                Rcpp::List& init_params, Rcpp::List& region_idx, Rcpp::List& L_idx,
+                                                Rcpp::List& batch_idx, 
+                                                double lambda, double prior_p,
+                                                int n_mcmc, int start_saving_imp,
+                                                int start_delta, int subsample_size, double step,
+                                                int begin_eta = 0,
+                                                int seed = 2022,
+                                                int thinning = 1, int burnin = 0,
+                                                double a=1, double b=1,int interval_eta = 10, 
+                                                bool all_sgld = false,
+                                                double a_step = 0.001,
+                                                double b_step = 10,
+                                                double gamma_step = -0.55,
+                                                bool testing = true, bool display_progress = true,
+                                                bool update_individual_effect = false){
   // read all data as file backed matrices
   set_seed(seed);    
   
@@ -265,7 +268,7 @@ List method2_SGLD_multiGP_impute_idx_fixeta(Rcpp::List& data_list, Rcpp::List& b
   
   // create a List to store imputed Y
   List Y_imp(total_batch); List Y_imp_mean(total_batch);
- 
+  
   // mat G; // (q+1) by n (X,C)^T
   for( int batch_counter=0; batch_counter<total_batch; batch_counter++ ){
     // get subsamples
@@ -406,17 +409,29 @@ List method2_SGLD_multiGP_impute_idx_fixeta(Rcpp::List& data_list, Rcpp::List& b
       arma::colvec XY_star_L_range = ( Y_star_sub_L_range - theta_eta(L_range, batch_idx_sub) -
         theta_gamma.rows(L_range)*X_q.cols(sub_idx) )* X_b(sub_idx);
       
-      // update theta_beta
-      theta_beta_cov_inv = arma::diagmat(1/D/sigma_beta2) +
-        X2_sum_b/sigma_Y2*D_delta2;
-      theta_beta_cov = arma::inv_sympd(theta_beta_cov_inv);
-      arma::colvec theta_beta_mean = theta_beta_cov * (D_delta * XY_star_L_range)/sigma_Y2;
-      arma::colvec gradU = theta_beta_cov_inv * (theta_beta(L_range) - theta_beta_mean);
-      gradU *= n/subsample_size;
+      // // update theta_beta -- old version
+      // theta_beta_cov_inv = arma::diagmat(1/D/sigma_beta2) +
+      //   X2_sum_b/sigma_Y2*D_delta2;
+      // theta_beta_cov = arma::inv_sympd(theta_beta_cov_inv);
+      // arma::colvec theta_beta_mean = theta_beta_cov * (D_delta * XY_star_L_range)/sigma_Y2;
+      // arma::colvec gradU = theta_beta_cov_inv * (theta_beta(L_range) - theta_beta_mean);
+      // gradU *= n/subsample_size;
+      // theta_beta(L_range) += -step/2*gradU + sqrt(step)*arma::randn(Lr,1);
+      // gradU_allregion(L_range) = gradU;
+      // beta(p_idx) = delta(p_idx) %( Q * theta_beta(L_range) );
+      // // beta(p_idx) = Q * theta_beta(L_range);
+      // beta_star(L_range) = D_delta * theta_beta(L_range);
+      
+      // new version
+      arma::mat theta_beta_cov_post = arma::inv_sympd(X2_sum_b/sigma_Y2*D_delta2);
+      arma::colvec theta_beta_mean_post = theta_beta_cov_post * (D_delta * XY_star_L_range)/sigma_Y2;
+      arma::colvec gradU_prior = arma::diagmat(1/D/sigma_beta2)*theta_beta(L_range);
+      arma::colvec gradU_log = (X2_sum_b/sigma_Y2*D_delta2) *theta_beta(L_range) - (D_delta * XY_star_L_range)/sigma_Y2;
+      arma::colvec gradU = gradU_prior + (n/subsample_size)*gradU_log;
+
       theta_beta(L_range) += -step/2*gradU + sqrt(step)*arma::randn(Lr,1);
       gradU_allregion(L_range) = gradU;
       beta(p_idx) = delta(p_idx) %( Q * theta_beta(L_range) );
-      // beta(p_idx) = Q * theta_beta(L_range);
       beta_star(L_range) = D_delta * theta_beta(L_range);
       
       // if(testing){
@@ -692,4 +707,5 @@ List method2_SGLD_multiGP_impute_idx_fixeta(Rcpp::List& data_list, Rcpp::List& b
                             Rcpp::Named("Y_imp_mean") = Y_imp_mean,
                             Rcpp::Named("delta_mcmc") =  delta_mcmc);
 }
+
 

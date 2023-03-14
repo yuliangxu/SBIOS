@@ -2,10 +2,10 @@
 gc(reset = TRUE)
 devtools::load_all()
 n_rep=Sys.getenv("SLURM_ARRAY_TASK_ID")
-sim_name = "sim1smalllnR"
+sim_name = "scalable_sim"
 datsim_name = paste(sim_name,n_rep,sep="")
-# outpath = file.path("/gpfs/accounts/jiankang_root/jiankang1/yuliangx/GSRA/sim_data") # for slurm
-outpath = file.path("./data") # for slurm
+# outpath = file.path("/gpfs/accounts/jiankang_root/jiankang1/yuliangx/GSRA/sim_data") # for remote
+outpath = file.path("./data") # for local
 
 missing_percent = 0.5
 sigma_Y = 1
@@ -29,7 +29,7 @@ if(n_rep != ""){
   Rprof_name = "Rprof_sim0.out"
 }
 Rprof_name_sn = paste(Rprof_name,"_sn",sep="")
-Rprof_name_ln = paste(Rprof_name,"_n",sep="")
+Rprof_name_ln = paste(Rprof_name,"_ln",sep="")
 
 # create a testing case ---------------------------------------------------
 
@@ -135,19 +135,19 @@ print(paste("common_percent = ",common_percent))
 print(paste("missing_percent = ",missing_percent))
 print(paste("contiguous_common = ",contiguous_common))
 mask_list_all_sn = get_random_mask(total_batch, batch_size_list,p,n,
-                                common_percent, missing_percent,
-                                contiguous_common,grids)
+                                   common_percent, missing_percent,
+                                   contiguous_common,grids)
 data_list = NULL
 
 utils::Rprof(Rprof_name,memory.profiling = TRUE)
-  data_list = read_data_list_to_FBM_impute(data_path_list_sn,mask_list_all_sn$mask_list_fbm,basis)
-  
-  data_list$mask_list = mask_list_all_sn$mask_list
-  
-  # get individual imputation list for method_imp_idx first
-  total_imp = unlist(lapply(mask_list_all_sn$mask_list_fbm, function(x){sum(bigmemory::as.matrix(x)==0)}))
-  
-  imp_idx_list = get_imp_list(mask_list_all_sn$mask_list_fbm,region_idx)
+data_list = read_data_list_to_FBM_impute(data_path_list_sn,mask_list_all_sn$mask_list_fbm,basis)
+
+data_list$mask_list = mask_list_all_sn$mask_list
+
+# get individual imputation list for method_imp_idx first
+total_imp = unlist(lapply(mask_list_all_sn$mask_list_fbm, function(x){sum(bigmemory::as.matrix(x)==0)}))
+
+imp_idx_list = get_imp_list(mask_list_all_sn$mask_list_fbm,region_idx)
 utils::Rprof(NULL)
 p_mem_readin = summaryRprof(filename = Rprof_name,memory = "tseries")
 unlink(Rprof_name)
@@ -209,16 +209,16 @@ devtools::load_all()
 t0 = Sys.time()
 utils::Rprof(Rprof_name_sn, memory.profiling = TRUE)
 sgld0_sn = SBIOS0(data_list_sn, basis, theta_eta_path,
-                        dimensions_sn,
-                        init_params0, region_idx_cpp, L_idx_cpp,
-                        batch_idx_cpp_sn, lambda = controls$lambda, prior_p = controls$prior_p,
-                        n_mcmc = controls$n_mcmc,  start_delta=controls$start_delta,
-                        subsample_size=controls$subsample_size, step = controls$step,
-                        burnin = controls$burnin,
-                        thinning = controls$thinning,
-                        interval_eta = controls$interval_eta,
-                        a = 1, b = 1,
-                        testing = 0, display_progress = 1)
+                  dimensions_sn,
+                  init_params0, region_idx_cpp, L_idx_cpp,
+                  batch_idx_cpp_sn, lambda = controls$lambda, prior_p = controls$prior_p,
+                  n_mcmc = controls$n_mcmc,  start_delta=controls$start_delta,
+                  subsample_size=controls$subsample_size, step = controls$step,
+                  burnin = controls$burnin,
+                  thinning = controls$thinning,
+                  interval_eta = controls$interval_eta,
+                  a = 1, b = 1,
+                  testing = 0, display_progress = 1)
 t1 = Sys.time()
 utils::Rprof(NULL)
 p_mem_gs_running_new_sn = summaryRprof(filename = Rprof_name_sn,memory = "tseries");unlink(Rprof_name)
@@ -271,8 +271,26 @@ par(mfrow=c(1,1))
 # sgld0_sn$readin_mem = get_mem(p_mem_gs_readin)
 # sgld0_sn$running_mem = get_mem(p_mem_gs_running)
 
-# read in list of data (largen)----------------------------------------------------
+# generate and read in list of data (largen)----------------------------------------------------
 n=4000; n_batch = 8;
+data_params = generate_large_block_multiGP_data_FBM(n,beta,gamma,GP,region_idx,outpath,datsim_name,
+                                                    sigma_Y=sigma_Y,
+                                                    q = q,n_batch = n_batch)
+true_coef = cbind(data_params$beta*data_params$delta,data_params$gamma)
+
+
+data_nm =file.path(outpath,paste(datsim_name,"data_multiGP_batch_n",n,"_p",p,"_L",L,sep=""))
+init_params0 = list(theta_beta = rep(1,L),
+                    theta_gamma = matrix(rep(1,q*L), nrow = L),
+                    theta_eta = matrix(0,nrow=L,ncol=n),
+                    eta = matrix(0,nrow=p,ncol=n),
+                    delta = rep(1,p),
+                    sigma_Y = 1, sigma_beta = 1, sigma_eta = 1, sigma_gamma=1)
+
+
+
+
+
 data_nm = file.path(outpath,paste(datsim_name,"data_multiGP_batch_n",n,"_p",p,"_L",L,sep=""))
 
 data_path_list_ln = NULL
@@ -381,8 +399,8 @@ par(mfrow=c(1,1))
 
 # analyze_result ----------------------------------------------------------
 zeroimp_sn = sum_stats(sgld0_sn,data_params$beta*data_params$delta,"SGLD-zeroimp",
-                    cutoff = 0.9,
-                    fdr_control = "ip_cutoff")
+                       cutoff = 0.9,
+                       fdr_control = "ip_cutoff")
 zeroimp_ln = sum_stats(sgld0_ln,data_params$beta*data_params$delta,"SGLD-zeroimp",
                        cutoff = 0.9,
                        fdr_control = "ip_cutoff")
@@ -442,5 +460,18 @@ mem_all = rbind(mem_ln , mem_sn)
 sum_stats = as.data.frame(t(rbind(AUC = AUC,
                                   TPRcon = TPRcon) ))
 
-cbind(sum_stats,mem_all)
+all_result = cbind(sum_stats,mem_all)
 
+knitr::kable(t(all_result),digits = 3)
+outname = paste("./sim_result/",sim_name,"_n",n,"_p",p,"_mis",missing_percent,"_sigY",sigma_Y,"_sim",n_rep,sep="")
+saveRDS(all_result,paste(outname,".rds",sep=""))
+
+# unlink data when finished
+for(dname in data_path_list_ln){
+  unlink(dname)
+}
+for(dname in data_path_list_sn){
+  unlink(dname)
+}
+unlink(file.path(outpath,paste(sim_name,"data_multiGP_batch_n",n,"_p",p,"_L",L,"params.rds",sep="")))
+unlink(file.path(outpath,paste(sim_name,"data_multiGP_batch_n",2*n,"_p",p,"_L",L,"params.rds",sep="")))
