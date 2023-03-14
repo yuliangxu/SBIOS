@@ -203,7 +203,7 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       arma::colvec XY_star = ( Y_star_sub - theta_eta_b.cols(sub_idx) - 
         theta_gamma*X_q.cols(sub_idx) )* X_b(sub_idx);
       
-      
+      // update beta old version
       theta_beta_cov_inv = arma::diagmat(1/D/sigma_beta2) + 
         X2_sum_b/sigma_Y2*D_delta2;
       if(!theta_beta_cov_inv.is_sympd()){
@@ -226,6 +226,18 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       beta(p_idx) = delta(p_idx) %( Q * theta_beta(L_range) );
       beta_star(L_range) = D_delta * theta_beta(L_range);
       //   
+      
+      // // uodate beta new
+      // arma::mat theta_beta_cov_post = arma::inv_sympd(X2_sum_b/sigma_Y2*D_delta2);
+      // arma::colvec theta_beta_mean_post = theta_beta_cov_post * (D_delta *XY_star(L_range))/sigma_Y2;
+      // arma::colvec gradU_prior = arma::diagmat(1/D/sigma_beta2)*theta_beta(L_range);
+      // arma::colvec gradU_log = (X2_sum_b/sigma_Y2*D_delta2) *theta_beta(L_range) - (D_delta * XY_star(L_range))/sigma_Y2;
+      // arma::colvec gradU = gradU_prior + (n/subsample_size)*gradU_log;
+      // 
+      // theta_beta(L_range) += -step/2*gradU + sqrt(step)*arma::randn(Lr,1);
+      // gradU_allregion(L_range) = gradU;
+      // beta(p_idx) = delta(p_idx) %( Q * theta_beta(L_range) );
+      // beta_star(L_range) = D_delta * theta_beta(L_range);
       
       
     }// end of one region
@@ -376,8 +388,9 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
     
    
     
-    
-    sigma_beta2 = 1/arma::randg( arma::distr_param(a + L/2, 1/(b+dot(theta_beta,theta_beta/D_vec)/2)) );
+    double b_beta = b+dot(theta_beta,theta_beta/D_vec)/2;
+    // b_beta *= n/subsample_size;
+    sigma_beta2 = 1/arma::randg( arma::distr_param(a + L/2, 1/b_beta) );
     sigma_gamma2 = 1/arma::randg( arma::distr_param(a + L*q/2, 1/(b+accu(theta_gamma%(theta_gamma.each_col()/D_vec))/2)) );
     t0 = clock() - t0;
     sys_t0 = ((double)t0)/CLOCKS_PER_SEC;

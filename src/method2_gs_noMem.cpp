@@ -202,7 +202,7 @@ List method2_gs_no_mem(Rcpp::List& data_list, Rcpp::List& basis,
       arma::colvec XY_star = ( Y_star_mat_all - theta_eta- 
         theta_gamma*X_q )* X_b.t();
       
-      theta_beta_cov_inv = arma::diagmat(1/D/sigma_beta2) + 
+      theta_beta_cov_inv = arma::diagmat(1/D/sigma_beta2*n/subsample_size) + 
         X2_sum_b/sigma_Y2*D_delta2;
       if(!theta_beta_cov_inv.is_sympd()){
         Rcout<<"theta_beta_cov_inv is not sympd"<<std::endl;
@@ -312,10 +312,13 @@ List method2_gs_no_mem(Rcpp::List& data_list, Rcpp::List& basis,
     // update sigma_Y2, sigma_eta2, and sigma_beta2
     // sigma_eta2 = 1/arma::randg( arma::distr_param(a + n*L/2, 1/(b+b_eta/2) ) );
     
+    double b_beta = b+dot(theta_beta,theta_beta/D_vec)/2;
+    // b_beta *= n/subsample_size;
+    sigma_beta2 = 1/arma::randg( arma::distr_param(a + L/2, 1/b_beta) );
     
     // sigma_beta2 = 1/arma::randg( arma::distr_param(a + L/2, 1/(b+dot(theta_beta,theta_beta/D_vec)/2)) );
     // sigma_beta2_mcmc(iter) = sigma_beta2;
-    // sigma_gamma2 = 1/arma::randg( arma::distr_param(a + L*q/2, 1/(b+accu(theta_gamma%(theta_gamma.each_col()/D_vec))/2)) );
+    sigma_gamma2 = 1/arma::randg( arma::distr_param(a + L*q/2, 1/(b+accu(theta_gamma%(theta_gamma.each_col()/D_vec))/2)) );
     t0 = clock() - t0;
     sys_t0 = ((double)t0)/CLOCKS_PER_SEC;
     time_segment(iter,4) = sys_t0;

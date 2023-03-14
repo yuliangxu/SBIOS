@@ -409,30 +409,30 @@ List method2_SGLD_multiGP_impute_idx_fixeta(Rcpp::List& data_list, Rcpp::List& b
       arma::colvec XY_star_L_range = ( Y_star_sub_L_range - theta_eta(L_range, batch_idx_sub) -
         theta_gamma.rows(L_range)*X_q.cols(sub_idx) )* X_b(sub_idx);
       
-      // // update theta_beta -- old version
-      // theta_beta_cov_inv = arma::diagmat(1/D/sigma_beta2) +
-      //   X2_sum_b/sigma_Y2*D_delta2;
-      // theta_beta_cov = arma::inv_sympd(theta_beta_cov_inv);
-      // arma::colvec theta_beta_mean = theta_beta_cov * (D_delta * XY_star_L_range)/sigma_Y2;
-      // arma::colvec gradU = theta_beta_cov_inv * (theta_beta(L_range) - theta_beta_mean);
-      // gradU *= n/subsample_size;
-      // theta_beta(L_range) += -step/2*gradU + sqrt(step)*arma::randn(Lr,1);
-      // gradU_allregion(L_range) = gradU;
-      // beta(p_idx) = delta(p_idx) %( Q * theta_beta(L_range) );
-      // // beta(p_idx) = Q * theta_beta(L_range);
-      // beta_star(L_range) = D_delta * theta_beta(L_range);
-      
-      // new version
-      arma::mat theta_beta_cov_post = arma::inv_sympd(X2_sum_b/sigma_Y2*D_delta2);
-      arma::colvec theta_beta_mean_post = theta_beta_cov_post * (D_delta * XY_star_L_range)/sigma_Y2;
-      arma::colvec gradU_prior = arma::diagmat(1/D/sigma_beta2)*theta_beta(L_range);
-      arma::colvec gradU_log = (X2_sum_b/sigma_Y2*D_delta2) *theta_beta(L_range) - (D_delta * XY_star_L_range)/sigma_Y2;
-      arma::colvec gradU = gradU_prior + (n/subsample_size)*gradU_log;
-
+      // update theta_beta -- old version
+      theta_beta_cov_inv = arma::diagmat(1/D/sigma_beta2) +
+        X2_sum_b/sigma_Y2*D_delta2;
+      theta_beta_cov = arma::inv_sympd(theta_beta_cov_inv);
+      arma::colvec theta_beta_mean = theta_beta_cov * (D_delta * XY_star_L_range)/sigma_Y2;
+      arma::colvec gradU = theta_beta_cov_inv * (theta_beta(L_range) - theta_beta_mean);
+      gradU *= n/subsample_size;
       theta_beta(L_range) += -step/2*gradU + sqrt(step)*arma::randn(Lr,1);
       gradU_allregion(L_range) = gradU;
       beta(p_idx) = delta(p_idx) %( Q * theta_beta(L_range) );
+      // beta(p_idx) = Q * theta_beta(L_range);
       beta_star(L_range) = D_delta * theta_beta(L_range);
+      
+      // // new version
+      // arma::mat theta_beta_cov_post = arma::inv_sympd(X2_sum_b/sigma_Y2*D_delta2);
+      // arma::colvec theta_beta_mean_post = theta_beta_cov_post * (D_delta * XY_star_L_range)/sigma_Y2;
+      // arma::colvec gradU_prior = arma::diagmat(1/D/sigma_beta2)*theta_beta(L_range);
+      // arma::colvec gradU_log = (X2_sum_b/sigma_Y2*D_delta2) *theta_beta(L_range) - (D_delta * XY_star_L_range)/sigma_Y2;
+      // arma::colvec gradU = gradU_prior + (n/subsample_size)*gradU_log;
+      // 
+      // theta_beta(L_range) += -step/2*gradU + sqrt(step)*arma::randn(Lr,1);
+      // gradU_allregion(L_range) = gradU;
+      // beta(p_idx) = delta(p_idx) %( Q * theta_beta(L_range) );
+      // beta_star(L_range) = D_delta * theta_beta(L_range);
       
       // if(testing){
       //   Rcout<<"region = "<<r<<std::endl;
@@ -635,10 +635,14 @@ List method2_SGLD_multiGP_impute_idx_fixeta(Rcpp::List& data_list, Rcpp::List& b
       double sigma_Y2_old = sigma_Y2;
       sigma_Y2 = 1/arma::randg( arma::distr_param(a + n*L/2, 1/(b+b_Y/2)) );
       sigma_Y2_diff = sigma_Y2 - sigma_Y2_old;
-      sigma_beta2 = 1/arma::randg( arma::distr_param(a + L/2,
-                                                     1/(b+dot(theta_beta,theta_beta/D_vec)/2)) );
+      
+      double b_beta = b+dot(theta_beta,theta_beta/D_vec)/2;
+      // b_beta *= n/subsample_size;
+      sigma_beta2 = 1/arma::randg( arma::distr_param(a + L/2, 1/b_beta) );
+      // sigma_beta2 = 1/arma::randg( arma::distr_param(a + L/2,
+      //                                                1/(b+dot(theta_beta,theta_beta/D_vec)/2)) );
       sigma_gamma2 = 1/arma::randg( arma::distr_param(a + L*q/2,
-                                                      1/(b+accu(theta_gamma%(theta_gamma.each_col()/D_vec))/2)) );
+                                                      1/(b+  accu(theta_gamma%(theta_gamma.each_col()/D_vec))/2)) );
       Rcout<<"iter = "<<iter<<"; sigma_Y2="<<sigma_Y2<<"; sigma_beta2="<<sigma_beta2<<std::endl;
       
       

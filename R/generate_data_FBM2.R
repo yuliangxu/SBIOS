@@ -725,3 +725,25 @@ Power = function(active_region, true_region){
 }
 
 
+get_Morris_FDR_thresh = function(beta_mcmc,fdr_target = 0.1, size_thresh=0){
+  p = dim(beta_mcmc)[1]
+  BFDR = apply(beta_mcmc,1,function(x){mean(abs(x)<=size_thresh)})
+  # hist(iprob_sort)
+  BFDR_sorted = sort(BFDR)
+  l = order(which(cumsum(BFDR_sorted)/(1:p) <= fdr_target),
+            decreasing = T)[1]
+  if(is.na(l)){l=1}
+  prob_thresh = BFDR_sorted[l]
+  # ggplot(grids_df) + geom_point(aes(x1, x2, color = iprob),shape=15,size=10) + scale_color_viridis()
+  
+  # ggplot(grids_df) + geom_point(aes(x1, x2, color = 1*(iprob<prob_thresh)),shape=15,size=10) + scale_color_viridis()
+  
+  # ip_thresh = quantile(iprob,fdr_target)
+  ip = NULL
+  ip$BFDR = BFDR
+  ip$size_thresh = size_thresh
+  ip$prob_thresh = prob_thresh
+  ip$mapping = 1*(BFDR<=prob_thresh)
+  
+  return(ip)
+}

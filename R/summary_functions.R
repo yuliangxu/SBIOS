@@ -7,7 +7,7 @@ plot_check = function(sgld3){
 }
 sum_stats = function(sgld,beta,main,fdr_target=0.1,size_thresh = 0.01,
                      ip_quantile = 0.3, cutoff = 0.5,
-                     fdr_control = 1){
+                     fdr_control = 1, output_beta_mcmc = T){
   burnin = (0.8*dim(sgld$theta_beta_mcmc)[2]):dim(sgld$theta_beta_mcmc)[2]
   beta_mcmc = Low_to_high(as.matrix(sgld$theta_beta_mcmc[,burnin]), basis)
   beta_mcmc = beta_mcmc * sgld$delta_mcmc[,burnin]
@@ -82,6 +82,9 @@ sum_stats = function(sgld,beta,main,fdr_target=0.1,size_thresh = 0.01,
   output$beta_mean = beta_mean
   output$ip = ip
   output$gamma_mean = gamma_mean
+  if(output_beta_mcmc){
+    output$beta_mcmc = beta_mcmc
+  }
   if(!is.null(sgld$mem)){
     output$mem = sgld$mem
   }
@@ -204,5 +207,9 @@ plot_ROC = function(ip_list, beta, len=20){
 }
 
 
+get_TPR = function(map, true_map){
+  res = as.matrix(table(map, true_map))
+  res["TRUE","TRUE"]/sum(res[,"TRUE"]) 
+}
 
 
