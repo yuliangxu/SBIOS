@@ -200,24 +200,24 @@ void update_Y_mat(arma::mat& Y_mat, arma::vec& Y_imp,
 
 
 // [[Rcpp::export]]
-List method2_SGLD_multiGP_impute_idx_fixeta(Rcpp::List& data_list, Rcpp::List& basis,  
-                                                Rcpp::List& dimensions, Rcpp::List& imp_idx_list,
-                                                arma::uvec total_imp, 
-                                                Rcpp::List& init_params, Rcpp::List& region_idx, Rcpp::List& L_idx,
-                                                Rcpp::List& batch_idx, 
-                                                double lambda, double prior_p,
-                                                int n_mcmc, int start_saving_imp,
-                                                int start_delta, int subsample_size, double step,
-                                                int begin_eta = 0,
-                                                int seed = 2022,
-                                                int thinning = 1, int burnin = 0,
-                                                double a=1, double b=1,int interval_eta = 10, 
-                                                bool all_sgld = false,
-                                                double a_step = 0.001,
-                                                double b_step = 10,
-                                                double gamma_step = -0.55,
-                                                bool testing = true, bool display_progress = true,
-                                                bool update_individual_effect = false){
+List SBIOSimp(Rcpp::List& data_list, Rcpp::List& basis,  
+              Rcpp::List& dimensions, Rcpp::List& imp_idx_list,
+              arma::uvec total_imp, 
+              Rcpp::List& init_params, Rcpp::List& region_idx, Rcpp::List& L_idx,
+              Rcpp::List& batch_idx, 
+              double lambda, double prior_p,
+              int n_mcmc, int start_saving_imp,
+              int start_delta, int subsample_size, double step,
+              int begin_eta = 0,
+              int seed = 2022,
+              int thinning = 1, int burnin = 0,
+              double a=1, double b=1,int interval_eta = 10, 
+              bool all_sgld = false,
+              double a_step = 0.001,
+              double b_step = 10,
+              double gamma_step = -0.55,
+              bool testing = true, bool display_progress = true,
+              bool update_individual_effect = false){
   // read all data as file backed matrices
   set_seed(seed);    
   
@@ -643,7 +643,7 @@ List method2_SGLD_multiGP_impute_idx_fixeta(Rcpp::List& data_list, Rcpp::List& b
       //                                                1/(b+dot(theta_beta,theta_beta/D_vec)/2)) );
       sigma_gamma2 = 1/arma::randg( arma::distr_param(a + L*q/2,
                                                       1/(b+  accu(theta_gamma%(theta_gamma.each_col()/D_vec))/2)) );
-      Rcout<<"iter = "<<iter<<"; sigma_Y2="<<sigma_Y2<<"; sigma_beta2="<<sigma_beta2<<std::endl;
+      // Rcout<<"iter = "<<iter<<"; sigma_Y2="<<sigma_Y2<<"; sigma_beta2="<<sigma_beta2<<std::endl;
       
       
       // // update XY_eta_term

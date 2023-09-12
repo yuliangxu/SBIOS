@@ -2,9 +2,10 @@ library(MASS) # generate multivariate normal sample
 library(BayesGPfit) # compute grids
 library(Matrix) # compute matrix rank
 library(bigmemory)
-library(bigstatsr)
 library(mvtnorm)
-library(RSpectra)
+
+# library(bigstatsr)
+# library(RSpectra)
 # ====Parameter Setup====
 get_mem = function(p_mem,sum_method = "tseries", bool_plot=F,main="mem"){
   # when using Rprof with summaryRprof(filename = "Rprof.out",memory = "both")
@@ -104,6 +105,32 @@ plot_img = function(img, grids_df,title="img",col_bar = NULL){
     ggtitle(title)+
     theme(plot.title = element_text(size=30),legend.text=element_text(size=20))
 }
+plot_multi_img = function(list_of_image, grids_df, n_img_per_row = 3,col_bar = c(0,1), byrow = T){
+  n_img = length(list_of_image)
+  n_row_img = ceiling(n_img/n_img_per_row)
+  all_image = vector("list", n_img)
+  names(all_image) =  names(list_of_image)
+  for(i in 1:n_img){
+    img = list_of_image[[i]]
+    title = names(list_of_image)[i]
+    g = ggplot(grids_df, aes(x=x1,y=x2)) +
+      geom_tile(aes(fill = img)) +
+      scale_fill_viridis_c(limits = col_bar, oob = scales::squish)+
+      ggtitle(title)+
+      theme(plot.title = element_text(size=20),legend.text=element_text(size=10))+
+      theme(legend.position="none")
+    all_image[[i]] = ggplotGrob(g)
+  }
+  layout_matrix = matrix(c(1:n_img,rep(NA,n_row_img*n_img_per_row-n_img)), 
+                         nrow = n_row_img, ncol = n_img_per_row, byrow = byrow)
+  
+  # layout_matrix[1:n_img] = 1:n_img
+  gridExtra::grid.arrange(
+    grobs = all_image,
+    layout_matrix = layout_matrix
+  )
+  
+}
 
 get_size = function(x){
   return(format(object.size(x), units = "auto"))
@@ -194,9 +221,50 @@ get_random_mask = function(total_batch,batch_size_list, p,n,
     mask = matrix(NA,p,n_b)
     mask[missing_area,] = 1*(matrix(runif(n_missing*n_b),n_missing,n_b)<missing_percent)
     mask[common_area,] = 1;
-    mask_list[[b]] = as.big.matrix(mask)@address
-    mask_list_fbm[[b]] = as.big.matrix(mask)
+    mask_list[[b]] = bigmemory::as.big.matrix(mask)@address
+    mask_list_fbm[[b]] = bigmemory::as.big.matrix(mask)
   }
+  return(list(mask_list = mask_list, mask_list_fbm = mask_list_fbm))
+}
+
+get_random_mask_misPattern = function(total_batch,batch_size_list, p,n,
+                                      true_beta,
+                           common_percent = 0.9, missing_percent = 0.1,
+                           contiguous_common = F, grids = NULL){
+  if(contiguous_common){
+    if(is.null(grids)){
+      print("Error: grids need to be specified for contiguous_common=T.")
+    }else{
+      cluster_centers = apply(grids,2,mean)
+      dist = apply(grids, 1, function(x){sum((x-cluster_centers)^2)})
+      common_area = order(dist)[1:(common_percent*p)]
+    }
+    
+  }else{
+    common_area = sort(sample(1:p,common_percent*p))
+  }
+  active_area = 1*(abs(true_beta)>0)
+  mis_active_area = 1*(abs(true_beta)<=0.2 &abs(true_beta)>=0.05)
+  a = rep(0,p); a[common_area]=1;
+  missing_area = union(which(a==0), which(mis_active_area==1));
+  n_missing = length(missing_area);
+  mask_list = vector("list",total_batch)
+  mask_list_fbm = vector("list",total_batch)
+  for(b in 1:total_batch){
+    n_b = batch_size_list[b]
+    mask = matrix(NA,p,n_b)
+    mask[common_area,] = 1;
+    mask[missing_area,] = 1*(matrix(runif(n_missing*n_b),n_missing,n_b)<missing_percent)
+    # mask[mis_active_area==1,] = 1*(runif(sum(mis_active_area==1))<0.5)
+    
+    mask_list[[b]] = bigmemory::as.big.matrix(mask)@address
+    mask_list_fbm[[b]] = bigmemory::as.big.matrix(mask)
+  }
+  
+  # b = rep(0,p);b[missing_area]=1
+  # plot_img(b,grids_df)
+  # plot_img(mask[,1],grids_df)
+  # 
   return(list(mask_list = mask_list, mask_list_fbm = mask_list_fbm))
 }
 
@@ -232,9 +300,9 @@ generate_basis_sq_FBM = function(grids,a=0.01,b=10,poly_degree=10){
   Q_fbm = qr.Q(qr)
   D = GP.eigen.value(poly_degree=poly_degree,a=a,b=b)
   GP = NULL
-  GP$Q = as_FBM(Q_fbm)
+  GP$Q = bigstatsr::as_FBM(Q_fbm)
   GP$Q_mat = Q_fbm
-  GP$Q_fbm = as.big.matrix(Q_fbm,type="double")
+  GP$Q_fbm = bigmemory::as.big.matrix(Q_fbm,type="double")
   GP$D = D
   return(GP)
 }
@@ -274,14 +342,14 @@ generate_data_FBM = function(n,true_beta,basis,sigma_alpha=1e-3){
   data_FBM$X = runif(n = N, min = -X_lim, max = X_lim)
   data_FBM$theta_eta.true = matrix(rnorm(N * L)*rep(sqrt(GP$D),N), ncol = N)
   data_FBM$eta = GP$Q_mat %*% data_FBM$theta_eta.true
-  GP$Q_T = big_transpose(GP$Q)
-  data_FBM$theta_beta.true = big_prodVec(GP$Q_T,beta)
+  GP$Q_T = bigstatsr::big_transpose(GP$Q)
+  data_FBM$theta_beta.true = bigstatsr::big_prodVec(GP$Q_T,beta)
   data_FBM$Q = GP$Q_fbm; data_FBM$Q_T = GP$Q_T
   data_FBM$eps_star = matrix(rnorm(N*L,sd=data_FBM$sigma_Y),nrow=L)
-  data_FBM$beta = big_prodVec(GP$Q,data_FBM$theta_beta.true)
+  data_FBM$beta = bigstatsr::big_prodVec(GP$Q,data_FBM$theta_beta.true)
   data_FBM$delta = as.numeric(1*I(true_beta!=0))
   # temp_FBM = big_prodMat(GP$Q_T,diag(data_FBM$delta)) %*% data_FBM$beta
-  temp_FBM = big_prodVec(GP$Q_T,data_FBM$beta*data_FBM$delta)
+  temp_FBM = bigstatsr::big_prodVec(GP$Q_T,data_FBM$beta*data_FBM$delta)
   data_FBM$sigma_eta = 1
   
   data_FBM$Y = as.matrix(data_FBM$beta*data_FBM$delta) %*% t(as.matrix(data_FBM$X)) + 
@@ -432,8 +500,8 @@ read_data_list_to_FBM = function(data_path_list,basis){
   for(b in 1:n_batch){
     print(paste("reading data batch ",b))
     data_b = readRDS(data_path_list[b])
-    Y[[b]] = as.big.matrix(data_b$Y)@address
-    Y_star[[b]] = as.big.matrix(High_to_low(data_b$Y,basis))@address
+    Y[[b]] = bigmemory::as.big.matrix(data_b$Y)@address
+    Y_star[[b]] = bigmemory::as.big.matrix(High_to_low(data_b$Y,basis))@address
     # Y_fbm[[b]] = as_FBM(data_b$Y)
     X[[b]] = data_b$X
   }
@@ -453,8 +521,8 @@ read_data_list_to_FBM_impute = function(data_path_list,mask_list_fbm,basis){
     data_b = readRDS(data_path_list[b])
     # Y_true_fbm[[b]] = as_FBM(data_b$Y)
     Y_b = data_b$Y * mask_b
-    Y_star[[b]] = as.big.matrix(High_to_low(Y_b,basis))@address
-    Y[[b]] = as.big.matrix(Y_b)@address
+    Y_star[[b]] = bigmemory::as.big.matrix(High_to_low(Y_b,basis))@address
+    Y[[b]] = bigmemory::as.big.matrix(Y_b)@address
     # Y_fbm[[b]] = as_FBM(Y_b)
     X[[b]] = data_b$X
   }
@@ -474,10 +542,10 @@ read_data_list_to_gs = function(data_path_list,mask_list_fbm){
     data_b = readRDS(data_path_list[b])
     mask_b = bigmemory::as.matrix(mask_list_fbm[[b]])
     Y_b = data_b$Y * mask_b
-    Y = cbind(Y,data_b$Y)
+    Y = cbind(Y,Y_b)
     X = cbind(X, data_b$X)
   }
-  Y_star=High_to_low(Y,basis)
+  Y_star = High_to_low(Y,basis)
   return(list(Y = Y, X = X,
               Y_star = Y_star))
 }
@@ -494,13 +562,13 @@ High_to_low = function(X, basis, display = 0){
       print(paste("region = ",r))  
     }
     
-    Q_t = big_transpose(as_FBM(basis$Phi_Q[[r]]))
+    Q_t = bigstatsr::big_transpose(bigstatsr::as_FBM(basis$Phi_Q[[r]]))
     L_end = L_start + dim(Q_t)[1] - 1
     row_idx = as.integer(basis$region_idx_block[[r]])
     if(n==1){
-      X_star[L_start:L_end,] = big_prodVec(Q_t, X[row_idx,] ) 
+      X_star[L_start:L_end,] = bigstatsr::big_prodVec(Q_t, X[row_idx,] ) 
     }else{
-      X_star[L_start:L_end,] = big_prodMat(Q_t, X[row_idx,] ) 
+      X_star[L_start:L_end,] = bigstatsr::big_prodMat(Q_t, X[row_idx,] ) 
     }
     L_start = L_end + 1
   }
@@ -519,13 +587,13 @@ Low_to_high = function(X_star,basis,display = 0){
       
       print(paste("region = ",r))
     }
-    Q = as_FBM(basis$Phi_Q[[r]])
+    Q = bigstatsr::as_FBM(basis$Phi_Q[[r]])
     L_end = L_start + dim(Q)[2] - 1
     row_idx = as.integer(basis$region_idx_block[[r]])
     if(dim(X_star)[2]==1){
-      X[row_idx,] = big_prodVec(Q, X_star[L_start:L_end,] ) 
+      X[row_idx,] = bigstatsr::big_prodVec(Q, X_star[L_start:L_end,] ) 
     }else{
-      X[row_idx,] = big_prodMat(Q, X_star[L_start:L_end,] )   
+      X[row_idx,] = bigstatsr::big_prodMat(Q, X_star[L_start:L_end,] )   
     }
     L_start = L_end + 1
   }
@@ -556,7 +624,7 @@ get_Y_star = function(Y_list, basis){
   for(b in 1:n_batch){
     print(paste("batch = ",b))
     Y_star_b = Y_list[[b]]
-    Y_star_list[[b]] = as.big.matrix(High_to_low(Y_star_b,basis))@address
+    Y_star_list[[b]] = bigmemory::as.big.matrix(High_to_low(Y_star_b,basis))@address
   }
   return(Y_star_list)
 }
@@ -574,18 +642,18 @@ generate_data_FBM_multiX = function(n,beta_list, basis){
   data_FBM$X = matrix(runif(n = N*n_x, min = -X_lim, max = X_lim),ncol=n,nrow=n_x) # n_x by n
   data_FBM$theta_eta.true = matrix(rnorm(N * L)*rep(sqrt(GP$D),N), ncol = N)
   data_FBM$eta = GP$Q_mat %*% data_FBM$theta_eta.true
-  GP$Q_T = big_transpose(GP$Q)
+  GP$Q_T = bigstatsr::big_transpose(GP$Q)
   
   data_FBM$theta_beta.true = matrix(NA, nrow = L, ncol = n_x)
   for(x_i in 1:n_x){
-    data_FBM$theta_beta.true[,x_i] = big_prodVec(GP$Q_T,beta_list[[x_i]])
+    data_FBM$theta_beta.true[,x_i] = bigstatsr::big_prodVec(GP$Q_T,beta_list[[x_i]])
   }
   
   data_FBM$Q = GP$Q_fbm; data_FBM$Q_T = GP$Q_T
   data_FBM$eps_star = matrix(rnorm(N*L,sd=data_FBM$sigma_Y),nrow=L)
   data_FBM$beta = matrix(NA, nrow = p, ncol = n_x) # p by n_x
   for(x_i in 1:n_x){
-    data_FBM$beta[,x_i] = big_prodVec(GP$Q,data_FBM$theta_beta.true[,x_i])
+    data_FBM$beta[,x_i] = bigstatsr::big_prodVec(GP$Q,data_FBM$theta_beta.true[,x_i])
   }
   
   
@@ -604,7 +672,7 @@ generate_data_FBM_multiX = function(n,beta_list, basis){
   
   data_FBM$Y_star = t(GP$Q_mat) %*% data_FBM$Y # L by n
   
-  temp_FBM = big_prodMat(GP$Q_T,data_FBM$beta*data_FBM$delta )
+  temp_FBM = bigstatsr::big_prodMat(GP$Q_T,data_FBM$beta*data_FBM$delta )
   data_FBM$logLL_star = (-0.5/data_FBM$sigma_Y^2)*
     (norm(data_FBM$Y_star - temp_FBM%*%data_FBM$X
           - data_FBM$theta_eta.true,"f"))^2 +
@@ -654,7 +722,7 @@ generate_matern_basis2 = function(grids, region_idx_list, L_vec,scale = 2,nu = 1
       }
     }
     diag(kernel_mat) = 1
-    K = eigs_sym(kernel_mat,L_vec[i])
+    K = RSpectra::eigs_sym(kernel_mat,L_vec[i])
     K_QR = qr(K$vectors)
     Phi_Q[[i]] = qr.Q(K_QR )
     Phi_D[[i]] = K$values

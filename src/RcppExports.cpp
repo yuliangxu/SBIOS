@@ -12,8 +12,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // SBIOS0
-List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis, Rcpp::List& theta_eta_path, Rcpp::List& dimensions, Rcpp::List& init_params, Rcpp::List& region_idx, Rcpp::List& L_idx, Rcpp::List& batch_idx, double lambda, double prior_p, int n_mcmc, int start_delta, int subsample_size, double step, int burnin, int thinning, double a, double b, int interval_eta, int start_eta, int start_saving_eta, bool all_sgld, double a_step, double b_step, double gamma_step, bool update_individual_effect, bool testing, bool display_progress);
-RcppExport SEXP _SBIOS_SBIOS0(SEXP data_listSEXP, SEXP basisSEXP, SEXP theta_eta_pathSEXP, SEXP dimensionsSEXP, SEXP init_paramsSEXP, SEXP region_idxSEXP, SEXP L_idxSEXP, SEXP batch_idxSEXP, SEXP lambdaSEXP, SEXP prior_pSEXP, SEXP n_mcmcSEXP, SEXP start_deltaSEXP, SEXP subsample_sizeSEXP, SEXP stepSEXP, SEXP burninSEXP, SEXP thinningSEXP, SEXP aSEXP, SEXP bSEXP, SEXP interval_etaSEXP, SEXP start_etaSEXP, SEXP start_saving_etaSEXP, SEXP all_sgldSEXP, SEXP a_stepSEXP, SEXP b_stepSEXP, SEXP gamma_stepSEXP, SEXP update_individual_effectSEXP, SEXP testingSEXP, SEXP display_progressSEXP) {
+List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis, Rcpp::List& theta_eta_path, Rcpp::List& dimensions, Rcpp::List& init_params, Rcpp::List& region_idx, Rcpp::List& L_idx, Rcpp::List& batch_idx, double lambda, double prior_p, int n_mcmc, int start_delta, int subsample_size, double step, int burnin, int thinning, double a, double b, int interval_eta, int start_eta, int start_saving_eta, int stop_tuning_stepsize, bool all_sgld, int sgld_freq, double a_step, double b_step, double gamma_step, bool update_individual_effect, bool testing, bool display_progress);
+RcppExport SEXP _SBIOS_SBIOS0(SEXP data_listSEXP, SEXP basisSEXP, SEXP theta_eta_pathSEXP, SEXP dimensionsSEXP, SEXP init_paramsSEXP, SEXP region_idxSEXP, SEXP L_idxSEXP, SEXP batch_idxSEXP, SEXP lambdaSEXP, SEXP prior_pSEXP, SEXP n_mcmcSEXP, SEXP start_deltaSEXP, SEXP subsample_sizeSEXP, SEXP stepSEXP, SEXP burninSEXP, SEXP thinningSEXP, SEXP aSEXP, SEXP bSEXP, SEXP interval_etaSEXP, SEXP start_etaSEXP, SEXP start_saving_etaSEXP, SEXP stop_tuning_stepsizeSEXP, SEXP all_sgldSEXP, SEXP sgld_freqSEXP, SEXP a_stepSEXP, SEXP b_stepSEXP, SEXP gamma_stepSEXP, SEXP update_individual_effectSEXP, SEXP testingSEXP, SEXP display_progressSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -38,14 +38,16 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type interval_eta(interval_etaSEXP);
     Rcpp::traits::input_parameter< int >::type start_eta(start_etaSEXP);
     Rcpp::traits::input_parameter< int >::type start_saving_eta(start_saving_etaSEXP);
+    Rcpp::traits::input_parameter< int >::type stop_tuning_stepsize(stop_tuning_stepsizeSEXP);
     Rcpp::traits::input_parameter< bool >::type all_sgld(all_sgldSEXP);
+    Rcpp::traits::input_parameter< int >::type sgld_freq(sgld_freqSEXP);
     Rcpp::traits::input_parameter< double >::type a_step(a_stepSEXP);
     Rcpp::traits::input_parameter< double >::type b_step(b_stepSEXP);
     Rcpp::traits::input_parameter< double >::type gamma_step(gamma_stepSEXP);
     Rcpp::traits::input_parameter< bool >::type update_individual_effect(update_individual_effectSEXP);
     Rcpp::traits::input_parameter< bool >::type testing(testingSEXP);
     Rcpp::traits::input_parameter< bool >::type display_progress(display_progressSEXP);
-    rcpp_result_gen = Rcpp::wrap(SBIOS0(data_list, basis, theta_eta_path, dimensions, init_params, region_idx, L_idx, batch_idx, lambda, prior_p, n_mcmc, start_delta, subsample_size, step, burnin, thinning, a, b, interval_eta, start_eta, start_saving_eta, all_sgld, a_step, b_step, gamma_step, update_individual_effect, testing, display_progress));
+    rcpp_result_gen = Rcpp::wrap(SBIOS0(data_list, basis, theta_eta_path, dimensions, init_params, region_idx, L_idx, batch_idx, lambda, prior_p, n_mcmc, start_delta, subsample_size, step, burnin, thinning, a, b, interval_eta, start_eta, start_saving_eta, stop_tuning_stepsize, all_sgld, sgld_freq, a_step, b_step, gamma_step, update_individual_effect, testing, display_progress));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -130,9 +132,9 @@ BEGIN_RCPP
     return R_NilValue;
 END_RCPP
 }
-// method2_SGLD_multiGP_impute_idx_fixeta
-List method2_SGLD_multiGP_impute_idx_fixeta(Rcpp::List& data_list, Rcpp::List& basis, Rcpp::List& dimensions, Rcpp::List& imp_idx_list, arma::uvec total_imp, Rcpp::List& init_params, Rcpp::List& region_idx, Rcpp::List& L_idx, Rcpp::List& batch_idx, double lambda, double prior_p, int n_mcmc, int start_saving_imp, int start_delta, int subsample_size, double step, int begin_eta, int seed, int thinning, int burnin, double a, double b, int interval_eta, bool all_sgld, double a_step, double b_step, double gamma_step, bool testing, bool display_progress, bool update_individual_effect);
-RcppExport SEXP _SBIOS_method2_SGLD_multiGP_impute_idx_fixeta(SEXP data_listSEXP, SEXP basisSEXP, SEXP dimensionsSEXP, SEXP imp_idx_listSEXP, SEXP total_impSEXP, SEXP init_paramsSEXP, SEXP region_idxSEXP, SEXP L_idxSEXP, SEXP batch_idxSEXP, SEXP lambdaSEXP, SEXP prior_pSEXP, SEXP n_mcmcSEXP, SEXP start_saving_impSEXP, SEXP start_deltaSEXP, SEXP subsample_sizeSEXP, SEXP stepSEXP, SEXP begin_etaSEXP, SEXP seedSEXP, SEXP thinningSEXP, SEXP burninSEXP, SEXP aSEXP, SEXP bSEXP, SEXP interval_etaSEXP, SEXP all_sgldSEXP, SEXP a_stepSEXP, SEXP b_stepSEXP, SEXP gamma_stepSEXP, SEXP testingSEXP, SEXP display_progressSEXP, SEXP update_individual_effectSEXP) {
+// SBIOSimp
+List SBIOSimp(Rcpp::List& data_list, Rcpp::List& basis, Rcpp::List& dimensions, Rcpp::List& imp_idx_list, arma::uvec total_imp, Rcpp::List& init_params, Rcpp::List& region_idx, Rcpp::List& L_idx, Rcpp::List& batch_idx, double lambda, double prior_p, int n_mcmc, int start_saving_imp, int start_delta, int subsample_size, double step, int begin_eta, int seed, int thinning, int burnin, double a, double b, int interval_eta, bool all_sgld, double a_step, double b_step, double gamma_step, bool testing, bool display_progress, bool update_individual_effect);
+RcppExport SEXP _SBIOS_SBIOSimp(SEXP data_listSEXP, SEXP basisSEXP, SEXP dimensionsSEXP, SEXP imp_idx_listSEXP, SEXP total_impSEXP, SEXP init_paramsSEXP, SEXP region_idxSEXP, SEXP L_idxSEXP, SEXP batch_idxSEXP, SEXP lambdaSEXP, SEXP prior_pSEXP, SEXP n_mcmcSEXP, SEXP start_saving_impSEXP, SEXP start_deltaSEXP, SEXP subsample_sizeSEXP, SEXP stepSEXP, SEXP begin_etaSEXP, SEXP seedSEXP, SEXP thinningSEXP, SEXP burninSEXP, SEXP aSEXP, SEXP bSEXP, SEXP interval_etaSEXP, SEXP all_sgldSEXP, SEXP a_stepSEXP, SEXP b_stepSEXP, SEXP gamma_stepSEXP, SEXP testingSEXP, SEXP display_progressSEXP, SEXP update_individual_effectSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -166,7 +168,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< bool >::type testing(testingSEXP);
     Rcpp::traits::input_parameter< bool >::type display_progress(display_progressSEXP);
     Rcpp::traits::input_parameter< bool >::type update_individual_effect(update_individual_effectSEXP);
-    rcpp_result_gen = Rcpp::wrap(method2_SGLD_multiGP_impute_idx_fixeta(data_list, basis, dimensions, imp_idx_list, total_imp, init_params, region_idx, L_idx, batch_idx, lambda, prior_p, n_mcmc, start_saving_imp, start_delta, subsample_size, step, begin_eta, seed, thinning, burnin, a, b, interval_eta, all_sgld, a_step, b_step, gamma_step, testing, display_progress, update_individual_effect));
+    rcpp_result_gen = Rcpp::wrap(SBIOSimp(data_list, basis, dimensions, imp_idx_list, total_imp, init_params, region_idx, L_idx, batch_idx, lambda, prior_p, n_mcmc, start_saving_imp, start_delta, subsample_size, step, begin_eta, seed, thinning, burnin, a, b, interval_eta, all_sgld, a_step, b_step, gamma_step, testing, display_progress, update_individual_effect));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -208,8 +210,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // method2_gs_no_mem
-List method2_gs_no_mem(Rcpp::List& data_list, Rcpp::List& basis, Rcpp::List& dimensions, Rcpp::List& init_params, Rcpp::List& region_idx, Rcpp::List& L_idx, Rcpp::List& batch_idx, double lambda, double prior_p, int n_mcmc, int start_delta, int subsample_size, double step, int burnin, int thinning, double a, double b, int interval_eta, int start_eta, int start_saving_eta, bool update_individual_effect, bool testing, bool display_progress);
-RcppExport SEXP _SBIOS_method2_gs_no_mem(SEXP data_listSEXP, SEXP basisSEXP, SEXP dimensionsSEXP, SEXP init_paramsSEXP, SEXP region_idxSEXP, SEXP L_idxSEXP, SEXP batch_idxSEXP, SEXP lambdaSEXP, SEXP prior_pSEXP, SEXP n_mcmcSEXP, SEXP start_deltaSEXP, SEXP subsample_sizeSEXP, SEXP stepSEXP, SEXP burninSEXP, SEXP thinningSEXP, SEXP aSEXP, SEXP bSEXP, SEXP interval_etaSEXP, SEXP start_etaSEXP, SEXP start_saving_etaSEXP, SEXP update_individual_effectSEXP, SEXP testingSEXP, SEXP display_progressSEXP) {
+List method2_gs_no_mem(Rcpp::List& data_list, Rcpp::List& basis, Rcpp::List& dimensions, Rcpp::List& init_params, Rcpp::List& region_idx, Rcpp::List& L_idx, Rcpp::List& batch_idx, double lambda, double prior_p, int n_mcmc, int start_delta, int subsample_size, double step, int burnin, int thinning, double a, double b, int interval_eta, int start_eta, int start_saving_eta, bool update_individual_effect, int seed, bool testing, bool display_progress);
+RcppExport SEXP _SBIOS_method2_gs_no_mem(SEXP data_listSEXP, SEXP basisSEXP, SEXP dimensionsSEXP, SEXP init_paramsSEXP, SEXP region_idxSEXP, SEXP L_idxSEXP, SEXP batch_idxSEXP, SEXP lambdaSEXP, SEXP prior_pSEXP, SEXP n_mcmcSEXP, SEXP start_deltaSEXP, SEXP subsample_sizeSEXP, SEXP stepSEXP, SEXP burninSEXP, SEXP thinningSEXP, SEXP aSEXP, SEXP bSEXP, SEXP interval_etaSEXP, SEXP start_etaSEXP, SEXP start_saving_etaSEXP, SEXP update_individual_effectSEXP, SEXP seedSEXP, SEXP testingSEXP, SEXP display_progressSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -234,24 +236,25 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type start_eta(start_etaSEXP);
     Rcpp::traits::input_parameter< int >::type start_saving_eta(start_saving_etaSEXP);
     Rcpp::traits::input_parameter< bool >::type update_individual_effect(update_individual_effectSEXP);
+    Rcpp::traits::input_parameter< int >::type seed(seedSEXP);
     Rcpp::traits::input_parameter< bool >::type testing(testingSEXP);
     Rcpp::traits::input_parameter< bool >::type display_progress(display_progressSEXP);
-    rcpp_result_gen = Rcpp::wrap(method2_gs_no_mem(data_list, basis, dimensions, init_params, region_idx, L_idx, batch_idx, lambda, prior_p, n_mcmc, start_delta, subsample_size, step, burnin, thinning, a, b, interval_eta, start_eta, start_saving_eta, update_individual_effect, testing, display_progress));
+    rcpp_result_gen = Rcpp::wrap(method2_gs_no_mem(data_list, basis, dimensions, init_params, region_idx, L_idx, batch_idx, lambda, prior_p, n_mcmc, start_delta, subsample_size, step, burnin, thinning, a, b, interval_eta, start_eta, start_saving_eta, update_individual_effect, seed, testing, display_progress));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_SBIOS_SBIOS0", (DL_FUNC) &_SBIOS_SBIOS0, 28},
+    {"_SBIOS_SBIOS0", (DL_FUNC) &_SBIOS_SBIOS0, 30},
     {"_SBIOS_big_address2mat", (DL_FUNC) &_SBIOS_big_address2mat, 1},
     {"_SBIOS_set_seed", (DL_FUNC) &_SBIOS_set_seed, 1},
     {"_SBIOS_complement", (DL_FUNC) &_SBIOS_complement, 3},
     {"_SBIOS_extract_mask", (DL_FUNC) &_SBIOS_extract_mask, 1},
     {"_SBIOS_update_Y_imp", (DL_FUNC) &_SBIOS_update_Y_imp, 12},
     {"_SBIOS_update_Y_mat", (DL_FUNC) &_SBIOS_update_Y_mat, 6},
-    {"_SBIOS_method2_SGLD_multiGP_impute_idx_fixeta", (DL_FUNC) &_SBIOS_method2_SGLD_multiGP_impute_idx_fixeta, 30},
+    {"_SBIOS_SBIOSimp", (DL_FUNC) &_SBIOS_SBIOSimp, 30},
     {"_SBIOS_method2_SGLD_multiGP_w_eta", (DL_FUNC) &_SBIOS_method2_SGLD_multiGP_w_eta, 27},
-    {"_SBIOS_method2_gs_no_mem", (DL_FUNC) &_SBIOS_method2_gs_no_mem, 23},
+    {"_SBIOS_method2_gs_no_mem", (DL_FUNC) &_SBIOS_method2_gs_no_mem, 24},
     {NULL, NULL, 0}
 };
 

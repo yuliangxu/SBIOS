@@ -29,7 +29,9 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
                                 int burnin=0, int thinning = 10,
                                 double a=1, double b=1,int interval_eta = 10, 
                                 int start_eta = 10, int start_saving_eta = 10,
-                                bool all_sgld = 1,
+                                int stop_tuning_stepsize = 1e5,
+                                bool all_sgld = 0,
+                                int sgld_freq = 50,
                                 double a_step = 0.001,
                                 double b_step = 10,
                                 double gamma_step = -0.55,
@@ -126,6 +128,10 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
   arma::colvec logLL_mcmc = arma::zeros(total_mcmc,1);
   arma::umat delta_mcmc = arma::umat(p,total_mcmc);
   arma::colvec sgld_step_mcmc = arma::zeros(n_mcmc,1);
+  arma::colvec logLL_prior_mcmc = arma::zeros(total_mcmc,1);
+  arma::colvec logLL_prior_theta_beta_mcmc = arma::zeros(total_mcmc,1);
+  arma::mat delta_logP_mcmc = arma::mat(p,total_mcmc);
+  arma::colvec logL_all = arma::zeros(p);
   
   // to be deleted 
   // arma::colvec beta = init_params["beta"];
@@ -151,9 +157,12 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
   
   bool if_update_eta=0;
   double save_eta_count = 0;
+  int sgld_step_counter = 0;
+  
   
   for(arma::uword iter=0; iter<n_mcmc; iter++){
     prog.increment(); 
+    double log_prior = 0;
     // if(iter==stop_burnin){
     //   timer.step("stop of burnin");        // record the starting point
     // }
@@ -183,65 +192,82 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       arma::rowvec X_b = X_batch.row(0);arma::mat X_q = X_batch.rows(1,q);
       arma::uword batch_size_b = X_b.n_elem;
       arma::uvec batch_range = batch_idx[batch_counter];
-      arma::uvec sub_idx = arma::randperm( batch_size_b, subsample_size );//??must be integer
-      // arma::uvec batch_idx_sub = batch_range(sub_idx);
-      // SEXP Y_fbm =  Y_list[batch_counter];
-      // XPtr<BigMatrix> Y_p(Y_fbm);
-      SEXP Y_star_fbm =  Y_star_list[batch_counter];
-      XPtr<BigMatrix> Y_star_p(Y_star_fbm);
-      const arma::mat Y_star_sub = extractBigMatCols(
-        arma::Mat<double>((double *)Y_star_p->matrix(), Y_star_p->nrow(), Y_star_p->ncol(), false),
-        sub_idx
-      );
-      
-      double X2_sum_b = sum(X_b(sub_idx)%X_b(sub_idx));
-      SEXP theta_eta_b_address =  theta_eta_path[b];
-      XPtr<BigMatrix> theta_eta_b_pointer(theta_eta_b_address);
-      const arma::mat theta_eta_b = arma::Mat<double>((double *)theta_eta_b_pointer->matrix(), theta_eta_b_pointer->nrow(), theta_eta_b_pointer->ncol(), false);
-      // Rcout<<"when updating beta, theta_eta_b(0,0)="<<theta_eta_b(0,0)<<std::endl;
-      
-      arma::colvec XY_star = ( Y_star_sub - theta_eta_b.cols(sub_idx) - 
-        theta_gamma*X_q.cols(sub_idx) )* X_b(sub_idx);
-      
-      // update beta old version
-      theta_beta_cov_inv = arma::diagmat(1/D/sigma_beta2) + 
-        X2_sum_b/sigma_Y2*D_delta2;
-      if(!theta_beta_cov_inv.is_sympd()){
-        Rcout<<"theta_beta_cov_inv is not sympd"<<std::endl;
-        Rcout<<"iter = "<<iter<<"; r ="<<r<<"; batch = "<<batch_counter<<std::endl;
-        Rcout<<"sigma_beta2 = "<<sigma_beta2<<"; sigma_Y2="<<sigma_Y2<<std::endl;
-        return List::create(Named("sigma_beta2") = sigma_beta2,
-                            Named("sigma_Y2") = sigma_Y2,
-                            Named("X2_sum_b") = X2_sum_b,
-                            Named("D_delta2") = D_delta2,
-                            Named("delta") = delta);
-      }
-      theta_beta_cov = arma::inv_sympd(theta_beta_cov_inv);
-      arma::colvec theta_beta_mean = theta_beta_cov * (D_delta * XY_star(L_range))/sigma_Y2;
-      arma::colvec gradU = theta_beta_cov_inv * (theta_beta(L_range) - theta_beta_mean);
-      gradU *= n/subsample_size;
-      theta_beta(L_range) += -step/2*gradU + sqrt(step)*arma::randn(Lr,1);
-      gradU_allregion(L_range) = gradU;
-      
-      beta(p_idx) = delta(p_idx) %( Q * theta_beta(L_range) );
-      beta_star(L_range) = D_delta * theta_beta(L_range);
+      for(int sgld_iter = 0; sgld_iter<sgld_freq; sgld_iter++){
+        arma::uvec sub_idx = arma::randperm( batch_size_b, subsample_size );//??must be integer
+        // arma::uvec batch_idx_sub = batch_range(sub_idx);
+        // SEXP Y_fbm =  Y_list[batch_counter];
+        // XPtr<BigMatrix> Y_p(Y_fbm);
+        SEXP Y_star_fbm =  Y_star_list[batch_counter];
+        XPtr<BigMatrix> Y_star_p(Y_star_fbm);
+        const arma::mat Y_star_sub = extractBigMatCols(
+          arma::Mat<double>((double *)Y_star_p->matrix(), Y_star_p->nrow(), Y_star_p->ncol(), false),
+          sub_idx
+        );
+        
+        double X2_sum_b = sum(X_b(sub_idx)%X_b(sub_idx));
+        SEXP theta_eta_b_address =  theta_eta_path[b];
+        XPtr<BigMatrix> theta_eta_b_pointer(theta_eta_b_address);
+        const arma::mat theta_eta_b = arma::Mat<double>((double *)theta_eta_b_pointer->matrix(), theta_eta_b_pointer->nrow(), theta_eta_b_pointer->ncol(), false);
+        // Rcout<<"when updating beta, theta_eta_b(0,0)="<<theta_eta_b(0,0)<<std::endl;
+        
+        arma::colvec XY_star = ( Y_star_sub - theta_eta_b.cols(sub_idx) - 
+          theta_gamma*X_q.cols(sub_idx) )* X_b(sub_idx);
+        
+        // update beta old version
+      //   theta_beta_cov_inv = arma::diagmat(1/D/sigma_beta2) + 
+      //     X2_sum_b/sigma_Y2*D_delta2;
+      //   if(!theta_beta_cov_inv.is_sympd()){
+      //     Rcout<<"theta_beta_cov_inv is not sympd"<<std::endl;
+      //     Rcout<<"iter = "<<iter<<"; r ="<<r<<"; batch = "<<batch_counter<<std::endl;
+      //     Rcout<<"sigma_beta2 = "<<sigma_beta2<<"; sigma_Y2="<<sigma_Y2<<std::endl;
+      //     return List::create(Named("sigma_beta2") = sigma_beta2,
+      //                         Named("sigma_Y2") = sigma_Y2,
+      //                         Named("X2_sum_b") = X2_sum_b,
+      //                         Named("D_delta2") = D_delta2,
+      //                         Named("delta") = delta);
+      //   }
+      //   theta_beta_cov = arma::inv_sympd(theta_beta_cov_inv);
+      //   arma::colvec theta_beta_mean = theta_beta_cov * (D_delta * XY_star(L_range))/sigma_Y2;// change this
+      //   arma::colvec gradU = theta_beta_cov_inv * (theta_beta(L_range) - theta_beta_mean);
+      //   gradU *= n/subsample_size;
+      //   theta_beta(L_range) += -step/2*gradU + sqrt(step)*arma::randn(Lr,1);
+      //   gradU_allregion(L_range) = gradU;
+      //   sgld_step_counter ++;
       //   
+      //   beta(p_idx) = delta(p_idx) %( Q * theta_beta(L_range) );
+      //   beta_star(L_range) = D_delta * theta_beta(L_range);
       
       // // uodate beta new
       // arma::mat theta_beta_cov_post = arma::inv_sympd(X2_sum_b/sigma_Y2*D_delta2);
       // arma::colvec theta_beta_mean_post = theta_beta_cov_post * (D_delta *XY_star(L_range))/sigma_Y2;
-      // arma::colvec gradU_prior = arma::diagmat(1/D/sigma_beta2)*theta_beta(L_range);
-      // arma::colvec gradU_log = (X2_sum_b/sigma_Y2*D_delta2) *theta_beta(L_range) - (D_delta * XY_star(L_range))/sigma_Y2;
-      // arma::colvec gradU = gradU_prior + (n/subsample_size)*gradU_log;
-      // 
-      // theta_beta(L_range) += -step/2*gradU + sqrt(step)*arma::randn(Lr,1);
-      // gradU_allregion(L_range) = gradU;
-      // beta(p_idx) = delta(p_idx) %( Q * theta_beta(L_range) );
-      // beta_star(L_range) = D_delta * theta_beta(L_range);
+      arma::colvec gradU_prior = arma::diagmat(1/D/sigma_beta2)*theta_beta(L_range);
+      arma::colvec gradU_log = (X2_sum_b/sigma_Y2*D_delta2) *theta_beta(L_range) - (D_delta * XY_star(L_range))/sigma_Y2;
+      // arma::colvec gradU_logL = (X2_sum_b/sigma_Y2*D_delta2) *(theta_beta(L_range) - theta_beta_mean_post);
+      // Rcout<<"iter = "<<iter <<"; region = "<<r<<std::endl;
+      // Rcout<<"arma::max(arma::abs(gradU_logL - gradU_log))"<<arma::max(arma::abs(gradU_logL - gradU_log))<<std::endl;
+      arma::colvec gradU = gradU_prior + (n/subsample_size)*gradU_log;
+      
+      theta_beta(L_range) += -step/2*gradU + sqrt(step)*arma::randn(Lr,1);
+      gradU_allregion(L_range) = gradU;
+      beta(p_idx) = delta(p_idx) %( Q * theta_beta(L_range) );
+      // beta(p_idx) = ( Q * theta_beta(L_range) );
+      beta_star(L_range) = D_delta * theta_beta(L_range);
+      
+      
+      
+      }
+      
+      
+      
       
       
     }// end of one region
     // 
+    
+    // log_prior of beta
+    double log_prior_theta_beta = -0.5*L*log(sigma_beta2) - 0.5*arma::accu(log(D_vec)) -
+      0.5/sigma_beta2*arma::dot(theta_beta, theta_beta/D_vec);
+    
     t0 = clock() - t0;
     double sys_t0 = ((double)t0)/CLOCKS_PER_SEC;
     time_segment(iter,0) = sys_t0;
@@ -251,6 +277,7 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
     // update theta_gamma
     t0 = clock();
     arma::mat mean_gamma = arma::mat(L,q);
+    arma::vec log_prior_theta_gamma = arma::zeros(q,1); 
     for(int j =0; j<q; j++){
       arma::colvec Sigma_gamma_j = 1/(1/D_vec/sigma_gamma2 + 1/sigma_Y2*X2_sum_allsample_q(j));
       arma::uvec c_j = complement(j, j, q);
@@ -265,6 +292,8 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       }else{
         theta_gamma.col(j) = arma::randn(L,1)%sqrt(Sigma_gamma_j) +  mean_gamma_j;
       }
+      log_prior_theta_gamma(j) = -0.5*L*log(sigma_gamma2) - 0.5*arma::accu(log(D_vec)) -
+        0.5/sigma_gamma2*arma::dot(theta_gamma.col(j), theta_gamma.col(j)/D_vec);
     }
     
     if(testing){
@@ -289,7 +318,7 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       delta_prior(sig_idx) *= prior_p;
       delta_prior(nonsig_idx) *= 1-prior_p;
       
-      arma::colvec logL_all = arma::zeros(p);
+      // arma::colvec logL_all = arma::zeros(p);
       for(arma::uword j=0;j<p;j++){
         double logL_j = -0.5/sigma_Y2*(beta(j)*beta(j)*X2_sum_allsample -
                                        2*(XY_eta_term(j) - gamma_XXq_term(j))*beta(j));
@@ -352,9 +381,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
           theta_eta_b += theta_eta_inc;
           
           
-          // if(batch_counter==0){
-          //   Rcout<<"after:theta_eta_b[0,0]="<<theta_eta_b(0,0)<<std::endl;
-          // }
           
           b_eta_vec(batch_counter) = arma::accu(theta_eta_b % (theta_eta_b.each_col() % (1/sqrt(D_vec)))) ;
           
@@ -364,6 +390,15 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
         }
         
       }
+      
+      // log prior
+      double b_eta = arma::accu(b_eta_vec);
+      double log_prior_theta_eta = -0.5*n*L*log(sigma_eta2) - 0.5*n*arma::accu(log(D_vec)) -
+        0.5/sigma_eta2*b_eta;
+      
+      log_prior = log_prior_theta_beta + log_prior_theta_eta + arma::accu(log_prior_theta_gamma);
+      // logLL_prior_mcmc(iter) = log_prior;
+      
       
       
       arma::uvec idxzero = arma::find(b_Y_vec == 0);
@@ -401,6 +436,8 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       batch_counter = 0;
     }
     
+  
+    
     
     if(iter > burnin){
       if((iter-burnin)%thinning == 0){
@@ -409,15 +446,21 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
         theta_gamma_mcmc.slice(mcmc_iter) = theta_gamma;
         delta_mcmc.col(mcmc_iter) = delta;
         logLL_mcmc(mcmc_iter) = logLL;
+        logLL_prior_mcmc(mcmc_iter) = log_prior;
         sigma_eta2_mcmc(mcmc_iter) = sigma_eta2;
         sigma_beta2_mcmc(mcmc_iter) = sigma_beta2;
         sigma_Y2_mcmc(mcmc_iter) = sigma_Y2;
         sigma_gamma2_mcmc(mcmc_iter) = sigma_gamma2;
+        logLL_prior_theta_beta_mcmc(mcmc_iter) = log_prior_theta_beta;
+        delta_logP_mcmc.col(mcmc_iter) = logL_all;
       }
     }
     
     // tune step size
-    step = a_step*pow((b_step+iter),gamma_step);
+    if(iter < stop_tuning_stepsize){
+      step = a_step*pow((b_step+sgld_step_counter),gamma_step);
+      
+    }
     sgld_step_mcmc(iter) = step;
     
   }//end of one iteration
@@ -432,6 +475,9 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
                             Rcpp::Named("sigma_gamma2_mcmc") =  sigma_gamma2_mcmc,
                             Rcpp::Named("sigma_Y2_mcmc") =  sigma_Y2_mcmc,
                             Rcpp::Named("logLL_mcmc") = logLL_mcmc,
+                            Rcpp::Named("logLL_prior_mcmc") = logLL_prior_mcmc,
+                            Rcpp::Named("logLL_prior_theta_beta_mcmc") = logLL_prior_theta_beta_mcmc,
+                            Rcpp::Named("delta_logP_mcmc") = delta_logP_mcmc,
                             Rcpp::Named("time_segment") = time_segment,
                             Rcpp::Named("delta_mcmc") =  delta_mcmc);
 }

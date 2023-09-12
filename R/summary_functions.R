@@ -175,7 +175,7 @@ plot_ROC = function(ip_list, beta, len=20){
       for(l in 1:len){
         res = as.matrix(table(p_adj <= p_adj_thresh[l], beta!=0))
         TPR[l] = res["TRUE","TRUE"]/sum(res[,"TRUE"]) # TP/P
-        FPR[l] = res["TRUE","FALSE"]/sum(res[,"TRUE"]) # FP/P
+        FPR[l] = res["TRUE","FALSE"]/sum(res[,"FALSE"]) # FP/N
       }
       TPR = c(TPR,1)
       FPR = c(FPR,1)
@@ -188,9 +188,12 @@ plot_ROC = function(ip_list, beta, len=20){
         if(! "TRUE" %in% rownames(res)){
           res = as.matrix(rbind(res,c(0,0)))
           rownames(res) = c("FALSE","TRUE")
+        }else if(! "FALSE" %in% rownames(res)){
+          res = as.matrix(rbind(c(0,0),res))
+          rownames(res) = c("FALSE","TRUE")
         }
         TPR[l] = res["TRUE","TRUE"]/sum(res[,"TRUE"]) # TP/P
-        FPR[l] = res["TRUE","FALSE"]/sum(res[,"TRUE"]) # FP/P
+        FPR[l] = res["TRUE","FALSE"]/sum(res[,"FALSE"]) # FP/N
         
       }
       TPR = c(1,TPR)
