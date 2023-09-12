@@ -5,7 +5,7 @@ Yuliang Xu
 
 # create a testing case
 
-is a user-defined default path in this example.
+*sbios_path* is a user-defined default path in this example.
 
 ``` r
 library(BayesGPfit)
