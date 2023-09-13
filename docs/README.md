@@ -1,9 +1,21 @@
 SBIOS:Vignette
 ================
 Yuliang Xu
-2023-09-12
+2023-09-13
 
-# create a testing case
+# installation
+
+``` r
+devtools::install_github("yuliangxu/SBIOS")
+#> Skipping install of 'SBIOS' from a github remote, the SHA1 (98edc289) has not changed since last install.
+#>   Use `force = TRUE` to force installation
+```
+
+# Examples
+
+## A simulated 2d example
+
+### create a testing case
 
 *sbios_path* is a user-defined default path in this example.
 
@@ -143,7 +155,7 @@ init_params_true = list(theta_beta = theta_beta_init,
 plot_img(data_params$beta, grids_df, title = "true beta")
 ```
 
-![](SBIOS_example_files/figure-gfm/unnamed-chunk-1-1.png)<!-- --> \#
+![](SBIOS_example_files/figure-gfm/unnamed-chunk-2-1.png)<!-- --> \###
 read in list of data
 
 ``` r
@@ -199,7 +211,7 @@ for(b in 1:length(data_list$Y_list)){
 batch_idx_cpp = lapply(batch_idx,function(x){x-1})
 ```
 
-# Run Gibbs sampler with no memory mapping feature
+### Run Gibbs sampler with no memory mapping feature
 
 ``` r
 ## remember to change subsample size accordingly
@@ -228,7 +240,7 @@ gs0 = method2_gs_no_mem(data_list_gs, basis,
                         testing = 0, display_progress = 1)
 ```
 
-# Run SBIOS0 (SGLD with no imputation)
+### Run SBIOS0 (SGLD with no imputation)
 
 ``` r
 controls$step_controls = list(a=0.0001,b=10,gamma = -0.35)
@@ -279,7 +291,7 @@ sgld0 = SBIOS0(data_list, basis, theta_eta_path,
 sgld0$controls = controls
 ```
 
-# Run SBIOS (SGLD with imputation)
+### Run SBIOS (SGLD with imputation)
 
 ``` r
 init_params0 = list(theta_beta = rep(1,L),
@@ -311,7 +323,7 @@ sgld = SBIOSimp(data_list, basis,dimensions, imp_idx_list, total_imp,
 sgld$controls = controls
 ```
 
-# summarize result
+### summarize result
 
 ``` r
 burnin = as.integer(((0.8*controls$n_mcmc):(controls$n_mcmc-1))/controls$thinning)
@@ -331,4 +343,12 @@ list_of_img = list(true_beta = data_params$beta,
 plot_multi_img(list_of_img,grids_df,  n_img_per_row = 2, col_bar = c(0,0.7))
 ```
 
-![](SBIOS_example_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+![](SBIOS_example_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+
+## An example using simulated Nifti data
+
+### create a testing case
+
+``` r
+library(RNifti)
+```
