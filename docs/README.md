@@ -11,7 +11,7 @@ devtools::install_github("yuliangxu/SBIOS")
 #>   Use `force = TRUE` to force installation
 ```
 
-# Examples
+# Examples {.tabset .tabset-fade}
 
 ## A simulated 2d example
 
