@@ -414,7 +414,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
     }
     
   
-   Rcout<<"test....7, iter="<<iter<<std::endl;
     
     if(iter > burnin){
       if((iter-burnin)%thinning == 0){
@@ -438,7 +437,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       step = a_step*pow((b_step+sgld_step_counter),gamma_step);
       
     }
-    Rcout<<"test....8, iter="<<iter<<std::endl;
     sgld_step_mcmc(iter) = step;
     
   }//end of one iteration
