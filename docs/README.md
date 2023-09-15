@@ -1,17 +1,205 @@
 SBIOS:Vignette
 ================
 Yuliang Xu
-2023-09-13
+2023-09-15
+
+- [installation](#installation)
+- [Examples](#examples)
+  - [An example using simulated Nifti
+    data](#an-example-using-simulated-nifti-data)
+    - [create a testing case (do not
+      run)](#create-a-testing-case-do-not-run)
+    - [run main function SBIOS from nifti data to nifti
+      result](#run-main-function-sbios-from-nifti-data-to-nifti-result)
+  - [A simulated 2d example](#a-simulated-2d-example)
+    - [create a testing case](#create-a-testing-case)
+    - [read in list of data](#read-in-list-of-data)
+    - [Run Gibbs sampler with no memory mapping
+      feature](#run-gibbs-sampler-with-no-memory-mapping-feature)
+    - [Run SBIOS0 (SGLD with no
+      imputation)](#run-sbios0-sgld-with-no-imputation)
+    - [Run SBIOS (SGLD with
+      imputation)](#run-sbios-sgld-with-imputation)
+    - [summarize result](#summarize-result)
 
 # installation
 
 ``` r
 devtools::install_github("yuliangxu/SBIOS")
-#> Skipping install of 'SBIOS' from a github remote, the SHA1 (98edc289) has not changed since last install.
+#> Skipping install of 'SBIOS' from a github remote, the SHA1 (f4d60721) has not changed since last install.
 #>   Use `force = TRUE` to force installation
 ```
 
-# Examples {.tabset .tabset-fade}
+# Examples
+
+## An example using simulated Nifti data
+
+``` r
+library(RNifti)
+library(oro.nifti) # for simulating nifti data 
+#> oro.nifti 0.11.4
+#> 
+#> Attaching package: 'oro.nifti'
+#> The following object is masked from 'package:RNifti':
+#> 
+#>     origin
+library(SBIOS)
+nifti_data_path = "./nifti_sim_data"
+
+n = 500; subsample_size = 100
+side = 10; p = side^3
+```
+
+### create a testing case (do not run)
+
+This chunk of code is used to generate 500 nifti data of size 10x10x10
+and 500 corresponding masks.
+
+``` r
+# step 0: generate data and save as nifti file (do not run)------------------------------------
+
+
+
+
+grids_3d = expand.grid(x = 1:side ,y =1:side, z=1:side) - 0.5*side
+grids = grids_3d
+
+# create true beta
+beta = rep(0,p)
+dist_to_center = apply((grids_3d - apply(grids_3d,1,mean))^2,1,mean)
+beta[dist_to_center <= 1] = 1
+plot3D::scatter3D(grids_3d[,1], grids_3d[,2], grids_3d[,3], 
+                  colvar = beta, col = NULL, add = FALSE,main = "true_beta",clim = c(0.5,1))
+
+num_region = 2
+
+region_idx = list(region1 = 1:(p/2), region2 = 1:(p/2)+p/2)
+plot3D::scatter3D(grids_3d[,1], grids_3d[,2], grids_3d[,3], 
+                  colvar = 1:p %in% region_idx$region1, col = "blue", add = FALSE,main = "region1",clim = c(0.5,1))
+plot3D::scatter3D(grids_3d[,1], grids_3d[,2], grids_3d[,3], 
+                  colvar = 1:p %in% region_idx$region2, col = "blue", add = FALSE,main = "region2",clim = c(0.5,1))
+
+# generate basis
+l = round(p/num_region*0.1)
+
+GP = generate_matern_basis2(grids, region_idx, rep(l,length(region_idx)),scale = 2,nu = 1/5,
+                            show_progress=T)
+saveRDS(GP,file.path(nifti_data_path,"basis_nifti.rds") )
+
+basis = readRDS(file.path(nifti_data_path,"basis_nifti.rds"))
+basis$D_vec = unlist(basis$Phi_D)
+L = sum(basis$L_all)
+
+# generate true parameters
+q = 4
+theta_gamma = matrix(rnorm(L*q), nrow = L)
+gamma = Low_to_high(theta_gamma,GP)
+sigma_Y = 0.1
+
+
+# generate a testing case
+sim_name = "nifti"
+data_params = generate_large_block_multiGP_data_FBM(n,beta,gamma,GP,region_idx,outpath=nifti_data_path,
+                                                    sim_name,
+                                                    sigma_Y=sigma_Y,
+                                                    q = q,n_batch = n_batch)
+true_coef = cbind(beta = data_params$beta*data_params$delta,
+                  gamma = data_params$gamma)
+saveRDS(true_coef, file.path(nifti_data_path,"true_coef.rds"))
+
+# record path of the simulated data
+data_nm =file.path(nifti_data_path,paste(sim_name,"data_multiGP_batch_n",n,"_p",p,"_L",L,sep=""))
+data_path_list = NULL
+for(b in 1:n_batch){
+  data_path_list = c(data_path_list,paste(data_nm,"_b",b,".rds",sep=""))
+}
+
+# create individual masks
+missing_percent = 0.5 
+common_percent = 0.9
+contiguous_common = T
+total_batch = length(data_path_list)
+batch_size_list = diff(ceiling(seq(1,n+1,length.out = length(data_path_list)+1)))
+mask_list_all = get_random_mask(total_batch, batch_size_list,p,n,
+                                common_percent, missing_percent,
+                                contiguous_common,grids)
+
+# read simulated data and write into Nifti files
+read_data_list_to_Nifti = function(data_path_list,mask_list_fbm){
+  n_batch = length(data_path_list)
+  X = NULL
+  person_counter = 0
+  for(b in 1:n_batch){
+    print(paste("reading data batch ",b))
+    mask_b = bigmemory::as.matrix(mask_list_fbm[[b]])
+    data_b = readRDS(data_path_list[b])
+    Y_b = data_b$Y * mask_b
+    for(i in 1:dim(Y_b)[2]){
+      # image data
+      person_counter = person_counter+1
+      empty_nifti <- array(data = Y_b[,i], dim = c(side,side,side))
+      nifti_object <- nifti(empty_nifti, datatype=16)
+      writeNIfTI(nifti_object, 
+                 file.path(nifti_data_path,paste("person",person_counter,sep="")))
+      # mask
+      empty_nifti <- array(data = mask_b[,i], dim = c(side,side,side))
+      nifti_object <- nifti(empty_nifti)
+      writeNIfTI(nifti_object, 
+                 file.path(nifti_data_path,paste("mask",person_counter,sep="")))
+    }
+    X = cbind(X, data_b$X)
+  }
+  return(X)
+}
+
+clinical_data = read_data_list_to_Nifti(data_path_list, mask_list_all$mask_list_fbm) # (q+1)x n
+saveRDS(clinical_data,file.path(nifti_data_path,"clinical_data.rds"))
+```
+
+### run main function SBIOS from nifti data to nifti result
+
+``` r
+nifti_data_path = file.path(sbios_path,"nifti_sim_data")
+predictor = readRDS(file.path(nifti_data_path,"clinical_data.rds"))
+img_list = file.path(nifti_data_path,paste("person",1:n,".nii.gz",sep=""))
+mask_list = file.path(nifti_data_path,paste("mask",1:n,".nii.gz",sep=""))
+
+basis = readRDS(file.path(nifti_data_path,"basis_nifti.rds"))
+basis$D_vec = unlist(basis$Phi_D)
+L = sum(basis$L_all)
+
+grids = expand.grid(x = 1:side ,y =1:side, z=1:side) - 0.5*side
+region_idx = list(region1 = 1:(p/2), region2 = 1:(p/2)+p/2)
+
+
+
+sbios0 = SBIOS(img_list, predictor, grids, out_path = nifti_data_path, 
+              basis = basis, region_idx = region_idx)
+#> [1] "run SBIOS0"
+#> [1] "step1: preprocess data to file-backed matrices"
+#> [1] "reading data batch  1"
+#> [1] "reading data batch  2"
+#> [1] "reading data batch  3"
+#> [1] "reading data batch  4"
+#> [1] "create theta_eta path for batch  1"
+#> [1] "create theta_eta path for batch  2"
+#> [1] "create theta_eta path for batch  3"
+#> [1] "create theta_eta path for batch  4"
+#> [1] "step2: running SBIOS0"
+#> [1] "step3: summarize result and output nifti file"
+
+sbiosimp = SBIOS(img_list, predictor, grids, mask_list = mask_list,
+                 out_path = nifti_data_path, 
+               basis = basis, region_idx = region_idx)
+#> [1] "run SBIOSimp"
+#> [1] "step1: preprocess data to file-backed matrices"
+#> [1] "reading data batch  1"
+#> [1] "reading data batch  2"
+#> [1] "reading data batch  3"
+#> [1] "reading data batch  4"
+#> [1] "step2: running SBIOSimp"
+#> [1] "step3: summarize result and output nifti file"
+```
 
 ## A simulated 2d example
 
@@ -155,8 +343,9 @@ init_params_true = list(theta_beta = theta_beta_init,
 plot_img(data_params$beta, grids_df, title = "true beta")
 ```
 
-![](SBIOS_example_files/figure-gfm/unnamed-chunk-2-1.png)<!-- --> \###
-read in list of data
+![](SBIOS_example_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+
+### read in list of data
 
 ``` r
 total_batch = length(data_path_list)
@@ -301,7 +490,7 @@ init_params0 = list(theta_beta = rep(1,L),
                     delta = rep(1,p),
                     sigma_Y = 1, sigma_beta = 1, sigma_eta = 1, sigma_gamma=1)
 
-sgld = SBIOSimp(data_list, basis,dimensions, imp_idx_list, total_imp,
+sgld = SBIOSimp(data_list, basis, dimensions, imp_idx_list, total_imp,
                 init_params0, region_idx_cpp, L_idx_cpp,
                 batch_idx_cpp, lambda = controls$lambda, prior_p = controls$prior_p,
                 n_mcmc = controls$n_mcmc,
@@ -343,12 +532,4 @@ list_of_img = list(true_beta = data_params$beta,
 plot_multi_img(list_of_img,grids_df,  n_img_per_row = 2, col_bar = c(0,0.7))
 ```
 
-![](SBIOS_example_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
-
-## An example using simulated Nifti data
-
-### create a testing case
-
-``` r
-library(RNifti)
-```
+![](SBIOS_example_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
