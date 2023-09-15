@@ -38,7 +38,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
                                 bool update_individual_effect = 1,
                                 bool testing = 0, bool display_progress = true){
   // read all data as file backed matrices
-  
   Rcpp::List Y_list = data_list["Y_list"];
   Rcpp::List X_list = data_list["X_list"];
   Rcpp::List Y_star_list = data_list["Y_star_list"];
@@ -52,7 +51,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
   Rcpp::List Phi_D = basis["Phi_D"];
   arma::colvec D_vec = basis["D_vec"];
   
-  
   // read initial parameters 
   arma::colvec theta_beta = init_params["theta_beta"];
   arma::mat theta_gamma = init_params["theta_gamma"];
@@ -62,7 +60,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
   double sigma_eta = init_params["sigma_eta"];
   double sigma_Y2 = sigma_Y*sigma_Y, sigma_beta2 = sigma_beta*sigma_beta, sigma_eta2 = sigma_eta*sigma_eta;
   double sigma_gamma2 = sigma_gamma*sigma_gamma;
-  
   
   arma::colvec XY_term_allsample = arma::zeros(p,1); // sum_i (Y_i(s))*X_i
   arma::mat XqYstar_term_allsample = arma::zeros(L,q);
@@ -81,7 +78,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
     const arma::mat X_batch = X_list[batch_counter];
     
     
-    
     arma::rowvec X_b = X_batch.row(0);arma::mat X_q = X_batch.rows(1,q);
     X2_sum_allsample += sum(X_b%X_b);
     
@@ -95,7 +91,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       arma::uvec c_j = complement(j, j, q);
       XcXq_sumsq.col(j) += X_q.rows(c_j) * trans(X_q.row(j));
     }
-    
     // pre-compute
     arma::uvec batch_range = batch_idx[batch_counter];
     arma::colvec XY_term = Y_mat * X_b.t();
@@ -109,13 +104,11 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
                         Named("XXq_sumsq")  = XXq_sumsq);
   }
   
-  
   arma::colvec XY_eta_term = arma::zeros(p,1);
   arma::mat XqYstar_theta_eta_term = arma::zeros(L,q);
   update_XY_eta_term_memsave(XY_eta_term,  XqYstar_theta_eta_term,
                      XY_term_allsample, XqYstar_term_allsample,theta_eta_path,
                      Phi_Q,region_idx,L_idx,batch_idx, X_list);
-  
   // output results
   int total_mcmc = (n_mcmc-burnin)/thinning;
   arma::mat theta_beta_mcmc = arma::zeros(L,total_mcmc);
@@ -159,7 +152,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
   double save_eta_count = 0;
   int sgld_step_counter = 0;
   
-  
   for(arma::uword iter=0; iter<n_mcmc; iter++){
     prog.increment(); 
     double log_prior = 0;
@@ -186,12 +178,12 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       arma::mat D_delta = Q_delta.t() * Q_delta;
       arma::mat D_delta2 = D_delta * D_delta;
       
-      
       // begin SGLD
       arma::mat X_batch = X_list[batch_counter];
       arma::rowvec X_b = X_batch.row(0);arma::mat X_q = X_batch.rows(1,q);
       arma::uword batch_size_b = X_b.n_elem;
       arma::uvec batch_range = batch_idx[batch_counter];
+      
       for(int sgld_iter = 0; sgld_iter<sgld_freq; sgld_iter++){
         arma::uvec sub_idx = arma::randperm( batch_size_b, subsample_size );//??must be integer
         // arma::uvec batch_idx_sub = batch_range(sub_idx);
@@ -263,7 +255,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       
     }// end of one region
     // 
-    
     // log_prior of beta
     double log_prior_theta_beta = -0.5*L*log(sigma_beta2) - 0.5*arma::accu(log(D_vec)) -
       0.5/sigma_beta2*arma::dot(theta_beta, theta_beta/D_vec);
@@ -295,7 +286,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       log_prior_theta_gamma(j) = -0.5*L*log(sigma_gamma2) - 0.5*arma::accu(log(D_vec)) -
         0.5/sigma_gamma2*arma::dot(theta_gamma.col(j), theta_gamma.col(j)/D_vec);
     }
-    
     if(testing){
       return List::create(Named("mean_gamma")  = mean_gamma,
                           Named("beta_star")  = beta_star,
@@ -338,7 +328,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
     sys_t0 = ((double)t0)/CLOCKS_PER_SEC;
     time_segment(iter,2) = sys_t0;
     t0 = clock();
-    
     arma::vec b_Y_vec = arma::zeros(total_batch,1); // for sigma_Y2 update
     arma::vec b_eta_vec = arma::zeros(total_batch,1);
     
@@ -353,25 +342,16 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
         XPtr<BigMatrix> Y_star_p(Y_star_fbm);
         const arma::mat Y_star_b = arma::Mat<double>((double *)Y_star_p->matrix(), 
                                                      Y_star_p->nrow(), Y_star_p->ncol(), false);
-        
-        SEXP theta_eta_b_address =  theta_eta_path[b];
+        SEXP theta_eta_b_address =  theta_eta_path[batch_counter];
         XPtr<BigMatrix> theta_eta_b_pointer(theta_eta_b_address);
         arma::mat theta_eta_b = arma::Mat<double>((double *)theta_eta_b_pointer->matrix(), 
                                                   theta_eta_b_pointer->nrow(), theta_eta_b_pointer->ncol(), false);
-        
-        
         const arma::mat temp_mat_b = Y_star_b - beta_star*X_b - theta_gamma*X_q;
         if(if_update_eta){
-         
           arma::colvec eta_sigma_pos = 1/(1/sigma_Y2 + 1/sigma_eta2/D_vec);
           arma::mat theta_eta_res = temp_mat_b - theta_eta_b;
           double temp_mat_b_norm = norm(theta_eta_res,"fro");
           b_Y_vec(batch_counter) = temp_mat_b_norm*temp_mat_b_norm;
-          
-          // Rcout<<"updating eta at batch = "<<batch_counter<<", iter="<<iter<<std::endl;
-          // if(batch_counter==0){
-          //   Rcout<<"before: theta_eta_b[0,0]="<<theta_eta_b(0,0)<<std::endl;
-          // }
           
           // update theta_eta using SGLD
           theta_eta_res.each_col() %= eta_sigma_pos/sigma_Y2;
@@ -381,14 +361,12 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
           theta_eta_b += theta_eta_inc;
           
           
-          
           b_eta_vec(batch_counter) = arma::accu(theta_eta_b % (theta_eta_b.each_col() % (1/sqrt(D_vec)))) ;
           
         }else{
           double temp_mat_b_norm = norm(temp_mat_b - theta_eta_b,"fro");
           b_Y_vec(batch_counter) = temp_mat_b_norm*temp_mat_b_norm;
         }
-        
       }
       
       // log prior
@@ -421,7 +399,6 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
                                  Phi_Q,region_idx,L_idx,batch_idx, X_list);
     }
     
-   
     
     double b_beta = b+dot(theta_beta,theta_beta/D_vec)/2;
     // b_beta *= n/subsample_size;
@@ -437,7 +414,7 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
     }
     
   
-    
+   Rcout<<"test....7, iter="<<iter<<std::endl;
     
     if(iter > burnin){
       if((iter-burnin)%thinning == 0){
@@ -461,6 +438,7 @@ List SBIOS0(Rcpp::List& data_list, Rcpp::List& basis,
       step = a_step*pow((b_step+sgld_step_counter),gamma_step);
       
     }
+    Rcout<<"test....8, iter="<<iter<<std::endl;
     sgld_step_mcmc(iter) = step;
     
   }//end of one iteration
